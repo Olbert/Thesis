@@ -2,3 +2,11 @@
 /deep_pipe/
 /DART20/
 /surface-distance/
+/output.jpg
+/mask.jpg
+/image.jpg
+/conp-dataset/projects/calgary-campinas/
+/conp-dataset/projects/
+deep_pipe/dpipe/commands.py
+deep_pipe/surface-distance/surface_distance/metrics.py
+/unet/runs/
