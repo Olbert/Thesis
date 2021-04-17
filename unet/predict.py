@@ -110,7 +110,7 @@ if __name__ == "__main__":
     logging.info(f'Using device {device}')
     net.to(device=device)
 
-    model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch50.pth"
+    model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch199.pth"
     net.load_state_dict(torch.load(model_path, map_location=device))
 
 

@@ -11,6 +11,7 @@ def eval_net(net, loader, device):
     """Evaluation without the densecrf with the dice coefficient"""
     net.eval()
     mask_type = torch.float32 if net.n_chans_out == 1 else torch.long
+    # TODO: redefine length
     n_val = len(loader)  # the number of batch
     tot = 0
 

@@ -25,7 +25,7 @@ dir_checkpoint = 'E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\ch
 if platform.system()=='Windows': n_cpu= 0
 
 def adjust_learning_rate(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    """Sets the learning rate to the initial LR decayed by 10 every 80 epochs"""
     lr = args.lr * (0.1 ** (epoch // 80))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
@@ -39,10 +39,9 @@ def train_net(net,
               save_cp=True,
               img_scale=1):
     # TODO: change place
-    slices = 50
+    slices = 60
     dataset = BasicDataset(dir_img, dir_mask, slices, img_scale,  '_ss')
-    err = 0
-    lens = []
+
 
 
     n_val = int(len(dataset) * val_percent)
@@ -54,16 +53,6 @@ def train_net(net,
     writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}_SCALE_{img_scale}')
     global_step = 0
 
-    logging.info(f'''Starting training:
-        Epochs:          {epochs}
-        Batch size:      {batch_size}
-        Learning rate:   {lr}
-        Training size:   {n_train}
-        Validation size: {n_val}
-        Checkpoints:     {save_cp}
-        Device:          {device.type}
-        Images scaling:  {img_scale}
-    ''')
     criterion, n_filters, batch_size, batches_per_epoch, n_epochs, lr_init, optimizer = net.default()
 
 
@@ -81,6 +70,18 @@ def train_net(net,
     #     criterion = nn.CrossEntropyLoss()
     # else:
     #     criterion = nn.BCEWithLogitsLoss()
+
+
+    logging.info(f'''Starting training:
+        Epochs:          {epochs}
+        Batch size:      {batch_size}
+        Learning rate:   {lr}
+        Training size:   {n_train}
+        Validation size: {n_val}
+        Checkpoints:     {save_cp}
+        Device:          {device.type}
+        Images scaling:  {img_scale}
+    ''')
 
     for epoch in range(epochs):
         net.train()
@@ -109,18 +110,20 @@ def train_net(net,
                 optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_value_(net.parameters(), 0.1)
+
+                adjust_learning_rate(optimizer, epoch)
                 optimizer.step()
 
                 pbar.update(imgs.shape[0])
                 global_step += 1
-                if global_step % (max(n_train // (10 * batch_size), 1000)) == 0:
+                if global_step % (max(n_train // (10 * batch_size), 100)) == 0:
                     for tag, value in net.named_parameters():
                         tag = tag.replace('.', '/')
                         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
                         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
                     val_score = eval_net(net, val_loader, device)
                     # scheduler.step(val_score)
-                    adjust_learning_rate(optimizer, epoch)
+
                     writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
                     if net.n_chans_out > 1:
@@ -151,11 +154,11 @@ def train_net(net,
 def get_args():
     parser = argparse.ArgumentParser(description='Train the UNet on images and target masks',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=50,
+    parser.add_argument('-e', '--epochs', metavar='E', type=int, default=200,
                         help='Number of epochs', dest='epochs')
-    parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=1,
+    parser.add_argument('-b', '--batch-size', metavar='B', type=int, nargs='?', default=32,
                         help='Batch size', dest='batchsize')
-    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.0001,
+    parser.add_argument('-l', '--learning-rate', metavar='LR', type=float, nargs='?', default=0.001,
                         help='Learning rate', dest='lr')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
