@@ -24,17 +24,11 @@ class BasicDataset(Dataset):
         return len(self.ids)*self.slices
 
     @classmethod
-    def preprocess(cls, pil_img, size):
-        pil_img = np.array(pil_img)
-        assert size[0] > 0 and size[1] > 0, 'Scale is too small'
-        # TODO Faster solution
-        img_nd = pil_img.copy()
-        img_nd = cv2.resize(img_nd, size)
+    def preprocess(cls, img, size):
+        img = np.array(img)
 
-        img_nd = np.array(img_nd)
-
-        if len(img_nd.shape) == 2:
-            img_nd = np.expand_dims(img_nd, axis=2)
+        if len(img.shape) == 2:
+            img_nd = np.expand_dims(img, axis=2)
 
         # HWC to CHW
         img_trans = img_nd.transpose((2, 0, 1))
