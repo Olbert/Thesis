@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
 
-from unet import UNet2D
+from model import UNet2D
 from utils.data_vis import plot_img_and_mask
 from utils.dataset import BasicDataset
 
@@ -16,11 +16,11 @@ from utils.dataset import BasicDataset
 def predict_img(net,
                 full_img,
                 device,
-                scale_factor=1,
+                size=(256,256),
                 out_threshold=0.5):
     net.eval()
     full_img = np.array(full_img)
-    img = torch.from_numpy(BasicDataset.preprocess(full_img, scale_factor))
+    img = torch.from_numpy(BasicDataset.preprocess(full_img, size))
 
     img = img.unsqueeze(0)
     img = img.to(device=device, dtype=torch.float32)
@@ -46,7 +46,9 @@ def predict_img(net,
         probs = tf(probs.cpu())
         full_mask = probs.squeeze().cpu().numpy()
 
-    return full_mask > out_threshold
+    return full_mask
+    # Old output
+    # return full_mask > out_threshold
 
 
 def get_args():
@@ -71,7 +73,7 @@ def get_args():
                         default=0.5)
     parser.add_argument('--size', '-s', type=float,
                         help="Size of the input images",
-                        default=(256,256))
+                        default=(128,128))
 
     return parser.parse_args()
 
@@ -100,7 +102,22 @@ def mask_to_image(mask):
 if __name__ == "__main__":
     args = get_args()
     in_files = args.input
-    out_files = get_output_filenames(args)
+
+    # Old version
+    # out_files = get_output_filenames(args)
+
+    out_files = [os.path.join(os.getcwd(), 'data', 'output30_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output35_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output40_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output45_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output50_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output55_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output60_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output65_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output70_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output75_s.jpg'),
+                 os.path.join(os.getcwd(), 'data', 'output80_s.jpg')
+                 ]
 
     net = UNet2D(n_chans_in=1, n_chans_out=1)
 
@@ -110,7 +127,7 @@ if __name__ == "__main__":
     logging.info(f'Using device {device}')
     net.to(device=device)
 
-    model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch199.pth"
+    model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch79.pth"
     net.load_state_dict(torch.load(model_path, map_location=device))
 
 
@@ -121,18 +138,22 @@ if __name__ == "__main__":
     for i, fn in enumerate(in_files):
         logging.info("\nPredicting image {} ...".format(fn))
 
-        img = Image.open(fn)
+        # Old version
+        # img = Image.open(fn)
+
+        img = Image.open(os.path.join(os.getcwd(),'data','input_s.jpg'))
 
         mask = predict_img(net=net,
                            full_img=img,
-                           scale_factor=args.size,
+                           size=args.size,
                            out_threshold=args.mask_threshold,
                            device=device)
 
         if not args.no_save:
             out_fn = out_files[i]
-            result = mask_to_image(mask)
-            result.save(out_files[i])
+            for k in range (0,10):
+                result = mask_to_image(mask>0.3+k/20)
+                result.save(out_files[k])
 
             logging.info("Mask saved to {}".format(out_files[i]))
 

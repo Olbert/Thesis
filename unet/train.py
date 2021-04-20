@@ -13,16 +13,16 @@ from torch import optim
 from tqdm import tqdm
 
 from eval import eval_net
-from unet import UNet2D
+from model import UNet2D
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.dataset import BasicDataset
+from utils.dataset import BasicDataset, NumpyDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\images/'
-dir_mask = 'E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\masks/'
-dir_checkpoint = 'E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints/'
-if platform.system()=='Windows': n_cpu= 0
+dir_img = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test\\images/'
+dir_mask = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test\\masks/'
+dir_checkpoint = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test\\checkpoints/'
+if platform.system() == 'Windows': n_cpu= 0
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 80 epochs"""
@@ -116,27 +116,28 @@ def train_net(net,
 
                 pbar.update(imgs.shape[0])
                 global_step += 1
-                if global_step % (max(n_train // (10 * batch_size), 100)) == 0:
+                if global_step % (max(n_train // (10 * batch_size), 300)) == 0:
                     for tag, value in net.named_parameters():
                         tag = tag.replace('.', '/')
                         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
                         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
-                    val_score = eval_net(net, val_loader, device)
-                    # scheduler.step(val_score)
+                    if (len(val_loader)!=0):
+                        val_score = eval_net(net, val_loader, device)
+                        # scheduler.step(val_score)
 
-                    writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
+                        writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
 
-                    if net.n_chans_out > 1:
-                        logging.info('Validation cross entropy: {}'.format(val_score))
-                        writer.add_scalar('Loss/test', val_score, global_step)
-                    else:
-                        logging.info('Validation Dice Coeff: {}'.format(val_score))
-                        writer.add_scalar('Dice/test', val_score, global_step)
+                        if net.n_chans_out > 1:
+                            logging.info('Validation cross entropy: {}'.format(val_score))
+                            writer.add_scalar('Loss/test', val_score, global_step)
+                        else:
+                            logging.info('Validation Dice Coeff: {}'.format(val_score))
+                            writer.add_scalar('Dice/test', val_score, global_step)
 
-                    writer.add_images('images', imgs, global_step)
-                    if net.n_chans_out == 1:
-                        writer.add_images('masks/true', true_masks, global_step)
-                        writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
+                        writer.add_images('images', imgs, global_step)
+                        if net.n_chans_out == 1:
+                            writer.add_images('masks/true', true_masks, global_step)
+                            writer.add_images('masks/pred', torch.sigmoid(masks_pred) > 0.5, global_step)
 
         if save_cp:
             try:
@@ -162,7 +163,7 @@ def get_args():
                         help='Learning rate', dest='lr')
     parser.add_argument('-f', '--load', dest='load', type=str, default=False,
                         help='Load model from a .pth file')
-    parser.add_argument('-s', '--size', dest='size', type=float, default=(256,256),
+    parser.add_argument('-s', '--size', dest='size', type=float, default=(128,128),
                         help='Downscaling factor of the images')
     parser.add_argument('-v', '--validation', dest='val', type=float, default=10.0,
                         help='Percent of the data that is used as validation (0-100)')
@@ -195,6 +196,7 @@ if __name__ == '__main__':
         logging.info(f'Model loaded from {args.load}')
 
     net.to(device=device)
+    # TODO: Research this
     # faster convolutions, but more memory
     # cudnn.benchmark = True
 

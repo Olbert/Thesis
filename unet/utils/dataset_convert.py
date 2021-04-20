@@ -49,19 +49,36 @@ def preprocess_dataset(path, new_path, size):
         pil_img = skTrans.resize(pil_img, (pil_img.shape[0], size[0],size[1]), order=1, preserve_range=True)
         np.save(os.path.join(new_path, img_file[:-4]),pil_img)
 
-def preprocess_image(path, new_path = "", size = (256,256)):
+
+def preprocess_3Dimage(path, new_path="", size=(256, 256)):
     assert size[0] > 0 and size[1] > 0, 'Scale is too small'
 
-    #pil_img = nib.load(path).get_fdata()
-    pil_img = np.load(path)
+    # pil_img = nib.load(path).get_fdata()
+
+    pil_img = nib.load(path).get_fdata()
     pil_img = np.array(pil_img)
     pil_img = np.clip(np.float32(pil_img), *np.percentile(np.float32(pil_img), [1, 99]))
     pil_img -= np.min(pil_img)
     pil_img /= np.max(pil_img)
 
-    pil_img = skTrans.resize(pil_img, (pil_img.shape[0], size[0],size[1]), order=1, preserve_range=True)
+    pil_img = skTrans.resize(pil_img, (pil_img.shape[0], size[0], size[1]), order=1, preserve_range=True)
     if new_path != "":
         np.save(os.path.join(new_path, path[:-4]), pil_img)
+    return pil_img
+
+
+def preprocess_image(img, size=(256, 256)):
+    assert size[0] > 0 and size[1] > 0, 'Scale is too small'
+
+    # pil_img = nib.load(path).get_fdata()
+
+    pil_img = np.array(img)
+    pil_img = np.clip(np.float32(pil_img), *np.percentile(np.float32(pil_img), [1, 99]))
+    pil_img -= np.min(pil_img)
+    pil_img /= np.max(pil_img)
+
+    pil_img = skTrans.resize(pil_img, (size[0], size[1]), order=1, preserve_range=True)
+
     return pil_img
 
 if __name__ == '__main__':

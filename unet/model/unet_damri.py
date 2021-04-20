@@ -5,7 +5,7 @@ from dpipe.layers.conv import PreActivation2d
 import numpy as np
 
 class UNet2D(nn.Module):
-    def __init__(self, n_chans_in, n_chans_out, kernel_size=3, padding=1, pooling_size=2, n_filters_init=8,
+    def __init__(self, n_chans_in, n_chans_out, kernel_size=3, padding=1, pooling_size=2, n_filters_init=16,
                  dropout=False, p=0.1):
         super().__init__()
         self.n_chans_in = n_chans_in
@@ -129,12 +129,11 @@ class UNet2D(nn.Module):
 
 
         #TODO: Find what this is
+
         # predict
         # @slicewise  # 3D -> 2D iteratively
         # @add_extract_dims(2)  # 2D -> (4D -> predict -> 4D) -> 2D
         # @divisible_shape(divisor=[8] * 2, padding_values=np.min)  # since the unet arch. input should be divided by 8
 
         return criterion, n_filters, batch_size, batches_per_epoch, n_epochs, lr_init, optimizer
-    def predict(image):
-        return inference_step(image, architecture=architecture, activation=torch.sigmoid)
 
