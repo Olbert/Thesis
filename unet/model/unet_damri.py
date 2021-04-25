@@ -137,3 +137,18 @@ class UNet2D(nn.Module):
 
         return criterion, n_filters, batch_size, batches_per_epoch, n_epochs, lr_init, optimizer
 
+    def __getitem__(self, i):
+        switcher = {
+            0: self.init_path,
+            1: self.down1,
+            2: self.down2,
+            3: self.down2,
+            4: self.up3,
+            5: self.up2,
+            6: self.up1,
+            7: self.out_path,
+        }
+        # Get the function from switcher dictionary
+        func = switcher.get(i, lambda: "Invalid layer")
+        # Execute the function
+        return(func)
