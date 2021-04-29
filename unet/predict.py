@@ -141,7 +141,7 @@ if __name__ == "__main__":
         # Old version
         # img = Image.open(fn)
 
-        img = Image.open(os.path.join(os.getcwd(),'data','input_s.jpg'))
+        img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
 
         mask = predict_img(net=net,
                            full_img=img,
@@ -155,8 +155,23 @@ if __name__ == "__main__":
                 result = mask_to_image(mask>0.3+k/20)
                 result.save(out_files[k])
 
+
             logging.info("Mask saved to {}".format(out_files[i]))
 
+        k = 1
+
+        # segmentation
+        seg = np.zeros((100, 100), dtype='int')
+        seg[30:70, 30:70] = k
+
+        # ground truth
+        gt = np.zeros((100, 100), dtype='int')
+        gt[30:70, 40:80] = k
+
+        dice = np.sum(seg[gt == k]) * 2.0 / (np.sum(seg) + np.sum(gt))
+
+        print
+        'Dice similarity score is {}'.format(dice)
         if args.viz:
             logging.info("Visualizing results for image {}, close to continue ...".format(fn))
             plot_img_and_mask(img, mask)

@@ -12,9 +12,9 @@ def show_slices(slices):
         axes[i].imshow(slice.T, cmap="gray", origin="lower")
 
 
-img_path = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Ready\\images\\CC0140_siemens_15_57_M.nii'
+img_path = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Ready\\images\\CC0006_philips_15_63_F.nii'
 img = preprocess_3Dimage(img_path, size = (128,128))
-mask_path = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Ready\\masks\\CC0140_siemens_15_57_M_ss.nii'
+mask_path = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Ready\\masks\\CC0006_philips_15_63_F_ss.nii'
 mask = preprocess_3Dimage(mask_path, size = (128,128))
 
 # img = nib.load('E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Ready\images\CC0012_philips_15_43_M.nii')
@@ -30,13 +30,13 @@ show_slices([mask[42], mask[:,40], mask[:,:,40]])
 
 plt.suptitle("Center slices for EPI image")
 
-plt.show()
+# plt.show()
 mask_slice = mask[42, :, :]
 path = os.path.join(os.path.dirname(os.getcwd()),'data')
-cv2.imwrite(os.path.join(path, 'mask_s.jpg'), mask_slice* 255)
-cv2.imwrite(os.path.join(path, 'input_s.jpg'), slice_0 * 255)
+cv2.imwrite(os.path.join(path, 'mask.jpg'), mask_slice* 255)
+cv2.imwrite(os.path.join(path, 'input.jpg'), slice_0 * 255)
 
-plt.show()
+# plt.show()
 
 
 

@@ -1,6 +1,6 @@
 import os
 import numpy as np
-
+from mpl_toolkits.mplot3d import Axes3D
 import torch
 import sklearn.manifold
 import matplotlib.pyplot as plt
@@ -11,6 +11,7 @@ from misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
 from utils.dataset import BasicDataset
 class CNNLayerVisualization():
+
     """
         Produces an image that minimizes the loss of a convolution
         operation for a specific layer and filter
@@ -90,10 +91,18 @@ def get_activation(name):
         activation[name] = output.detach()
 
     return hook
+def remove_far(input):
 
-def get_mid_output(net, fig, img):
+    mean = np.absolute(np.mean(input, axis=0)).sum()
+    sd = np.absolute(np.std(input, axis=0)).sum()
+
+    final_list = [x for x in input if (np.absolute(x).sum() > mean - 2 * sd)]
+    final_list = [x for x in final_list if (np.absolute(x).sum() < mean + 2 * sd)]
+    return np.array((final_list))
+
+def get_mid_output(net, fig, img,col):
     # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
-    net.down1.register_forward_hook(get_activation('down1'))
+    net.down2.register_forward_hook(get_activation('down2'))
     net.eval()
     full_img = np.array(img)
     img = torch.from_numpy(BasicDataset.preprocess(full_img, (128, 128)))
@@ -103,13 +112,17 @@ def get_mid_output(net, fig, img):
 
     with torch.no_grad():
         output = net(img)
-        output_mid = activation['down1'].cpu().detach().numpy()[0]
+        output_mid = activation['down2'].cpu().detach().numpy()[0]
         output_mid = output_mid.reshape(32, -1)
-        output_2d = sklearn.manifold.TSNE(n_components=2).fit_transform(output_mid)
-
-        plt.scatter(output_2d[:,0],output_2d[:,1])
-
+        output_2d = sklearn.manifold.TSNE(n_components=3, perplexity=5).fit_transform(output_mid)
+        # output_2d = remove_far(output_2d)
+        # plt.scatter(output_2d[:,0],output_2d[:,1],c=col)
+        ax.scatter(*zip(*output_2d), c=col)
 if __name__ == '__main__':
+
+
+    fig3d = plt.figure()
+    ax = fig3d.add_subplot(111, projection='3d')
 
     cnn_layer = 1
     filter_pos = 2
@@ -122,16 +135,29 @@ if __name__ == '__main__':
     model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch79.pth"
     net.load_state_dict(torch.load(model_path, map_location=device))
 
-    fig = plt.figure()
+    #fig = plt.figure()
 
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input.jpg'))
+    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_1.jpg'))
 
-    get_mid_output(net, fig, img)
+    get_mid_output(net, ax, img, 'r')
+    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_2.jpg'))
 
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
+    get_mid_output(net, ax, img,'r')
+    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_3.jpg'))
 
-    get_mid_output(net, fig, img)
+    get_mid_output(net, ax, img,'r')
+    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_4.jpg'))
+
+    get_mid_output(net, fig3d, img,'r')
+    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_5.jpg'))
+
+    get_mid_output(net, ax, img,'r')
+   # plt.show()
+    img = Image.open(os.path.join(os.getcwd(), 'data', 'mask.jpg'))
+
+    get_mid_output(net, fig3d, img,'b')
     plt.show()
+
     # layer_vis = CNNLayerVisualization(net, cnn_layer, filter_pos)
     #
     # # Layer visualization with pytorch hooks

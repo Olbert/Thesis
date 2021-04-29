@@ -10,3 +10,4 @@
 deep_pipe/dpipe/commands.py
 deep_pipe/surface-distance/surface_distance/metrics.py
 /unet/runs/
+/generated/
