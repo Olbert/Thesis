@@ -6,10 +6,15 @@ import sklearn.manifold
 import matplotlib.pyplot as plt
 from torch.optim import Adam
 from torchvision import models
+from sklearn import preprocessing
+
+
 from model import UNet2D
 from misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
 from utils.dataset import BasicDataset
+
+
 class CNNLayerVisualization():
 
     """
@@ -91,6 +96,8 @@ def get_activation(name):
         activation[name] = output.detach()
 
     return hook
+
+
 def remove_far(input):
 
     mean = np.absolute(np.mean(input, axis=0)).sum()
@@ -100,9 +107,9 @@ def remove_far(input):
     final_list = [x for x in final_list if (np.absolute(x).sum() < mean + 2 * sd)]
     return np.array((final_list))
 
-def get_mid_output(net, fig, img,col):
+def get_mid_output(net, img, layer = 'init_path'):
     # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
-    net.down2.register_forward_hook(get_activation('down2'))
+    getattr(net, layer).register_forward_hook(get_activation(layer)) # get the layer by it's name
     net.eval()
     full_img = np.array(img)
     img = torch.from_numpy(BasicDataset.preprocess(full_img, (128, 128)))
@@ -112,20 +119,39 @@ def get_mid_output(net, fig, img,col):
 
     with torch.no_grad():
         output = net(img)
-        output_mid = activation['down2'].cpu().detach().numpy()[0]
-        output_mid = output_mid.reshape(32, -1)
-        output_2d = sklearn.manifold.TSNE(n_components=3, perplexity=5).fit_transform(output_mid)
-        # output_2d = remove_far(output_2d)
-        # plt.scatter(output_2d[:,0],output_2d[:,1],c=col)
-        ax.scatter(*zip(*output_2d), c=col)
+        output_mid = activation[layer].cpu().detach().numpy()[0]
+
+    return output_mid
+
+
+def scatter_output(output_mid, fig, col):
+
+    output_mid = output_mid.reshape(16, -1)
+    output_2d = sklearn.manifold.TSNE(n_components=2, perplexity=5).fit_transform(output_mid).astype(np.float)
+    # output_2d = remove_far(output_2d)
+    plt.scatter(x=output_2d[:, 0], y=output_2d[:, 1], c=col)
+    # ax.scatter(*zip(*output_2d), c=col)
+
+def new_scatter(output_mid, axis, filter, perp, col):
+    # for i in range(0, kernels_num//2):
+    #     for k in range(0, 2):
+            output_mid[filter] = scaler.fit_transform(output_mid[filter])
+            output_2d = sklearn.manifold.TSNE(n_components=2, perplexity=perp).fit_transform(output_mid[filter]).astype(np.float)
+
+            output_2d = scaler.fit_transform(output_2d)
+
+            axis.scatter(x=output_2d[:, 0], y=output_2d[:, 1], c=col)
+            # axis[k, i].set_title("")
+            # axis[k, i].set_box_aspect(1)
+
 if __name__ == '__main__':
 
-
-    fig3d = plt.figure()
-    ax = fig3d.add_subplot(111, projection='3d')
-
+    #
+    # fig3d = plt.figure()
+    # ax = fig3d.add_subplot(111, projection='3d')
+    scaler = preprocessing.MinMaxScaler()
     cnn_layer = 1
-    filter_pos = 2
+    filter_pos = 0
     # Fully connected layer is not needed
     net = UNet2D(n_chans_in=1, n_chans_out=1)
 
@@ -134,29 +160,39 @@ if __name__ == '__main__':
 
     model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch79.pth"
     net.load_state_dict(torch.load(model_path, map_location=device))
+    for perp in range(1,6):
+        for filter_pos in range(0, 16):
+            img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_1.jpg'))
+            output_mid = get_mid_output(net,img)
 
-    #fig = plt.figure()
+            kernels_num = output_mid.shape[0]
+            # figure, axis = plt.subplots(2, kernels_num)
+            fig = plt.figure()
+            axis = fig.add_axes([0, 0, 1, 1])
 
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_1.jpg'))
+            new_scatter(output_mid, axis, filter_pos, perp, 'red')
 
-    get_mid_output(net, ax, img, 'r')
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_2.jpg'))
+            img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
+            output_mid = get_mid_output(net, img)
+            new_scatter(output_mid, axis, filter_pos, perp, 'blue')
 
-    get_mid_output(net, ax, img,'r')
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_3.jpg'))
+            img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_2.jpg'))
+            output_mid = get_mid_output(net, img)
+            new_scatter(output_mid, axis, filter_pos, perp, 'pink')
 
-    get_mid_output(net, ax, img,'r')
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_4.jpg'))
+            # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_4.jpg'))
+            # output_mid = get_mid_output(net, img)
+            # new_scatter(output_mid, axis, 'r')
+            #
+            # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_5.jpg'))
+            # output_mid = get_mid_output(net, img)
+            # new_scatter(output_mid, axis, 'r')
 
-    get_mid_output(net, fig3d, img,'r')
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_5.jpg'))
-
-    get_mid_output(net, ax, img,'r')
-   # plt.show()
-    img = Image.open(os.path.join(os.getcwd(), 'data', 'mask.jpg'))
-
-    get_mid_output(net, fig3d, img,'b')
-    plt.show()
+            img = Image.open(os.path.join(os.getcwd(), 'data', 'mask.jpg'))
+            output_mid = get_mid_output(net, img)
+            new_scatter(output_mid, axis, filter_pos, perp, 'black')
+            fig.savefig("data/graphs/filt_"+str(filter_pos)+"perp_"+str(perp)+".jpg")
+            # plt.show()
 
     # layer_vis = CNNLayerVisualization(net, cnn_layer, filter_pos)
     #

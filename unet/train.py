@@ -122,7 +122,7 @@ def train_net(net,
                         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
                         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
                     if (len(val_loader)!=0):
-                        val_score = eval_net(net, val_loader, device)
+                        val_score = eval_net (net, val_loader, device)
                         # scheduler.step(val_score)
 
                         writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
