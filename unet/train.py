@@ -19,9 +19,9 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.dataset import BasicDataset, NumpyDataset
 from torch.utils.data import DataLoader, random_split
 
-dir_img = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test\\images/'
-dir_mask = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test\\masks/'
-dir_checkpoint = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test\\checkpoints/'
+dir_img = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train2\\images/'
+dir_mask = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train2\\masks/'
+dir_checkpoint = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train2\\checkpoints/'
 if platform.system() == 'Windows': n_cpu= 0
 
 def adjust_learning_rate(optimizer, epoch):
@@ -37,10 +37,10 @@ def train_net(net,
               lr=0.001,
               val_percent=0.1,
               save_cp=True,
-              img_scale=1):
+              img_size=(256, 256)):
     # TODO: change place
     slices = 60
-    dataset = BasicDataset(dir_img, dir_mask, slices, img_scale,  '_ss')
+    dataset = BasicDataset(dir_img, dir_mask, slices, img_size, '_ss')
 
 
 
@@ -50,7 +50,7 @@ def train_net(net,
     train_loader = DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True, drop_last=True)
 
-    writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}_SCALE_{img_scale}')
+    writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}_SCALE_{img_size}')
     global_step = 0
 
     criterion, n_filters, batch_size, batches_per_epoch, n_epochs, lr_init, optimizer = net.default()
@@ -80,7 +80,7 @@ def train_net(net,
         Validation size: {n_val}
         Checkpoints:     {save_cp}
         Device:          {device.type}
-        Images scaling:  {img_scale}
+        Images scaling:  {img_size}
     ''')
 
     for epoch in range(epochs):
@@ -122,7 +122,7 @@ def train_net(net,
                         writer.add_histogram('weights/' + tag, value.data.cpu().numpy(), global_step)
                         writer.add_histogram('grads/' + tag, value.grad.data.cpu().numpy(), global_step)
                     if (len(val_loader)!=0):
-                        val_score = eval_net (net, val_loader, device)
+                        val_score = eval_net(net, val_loader, device)
                         # scheduler.step(val_score)
 
                         writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], global_step)
@@ -206,7 +206,7 @@ if __name__ == '__main__':
                   batch_size=args.batchsize,
                   lr=args.lr,
                   device=device,
-                  img_scale=args.size,
+                  img_size=args.size,
                   val_percent=np.float(args.val) / 100)
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')

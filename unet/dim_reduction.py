@@ -4,200 +4,669 @@ from mpl_toolkits.mplot3d import Axes3D
 import torch
 import sklearn.manifold
 import matplotlib.pyplot as plt
+import pandas as pd
 from torch.optim import Adam
 from torchvision import models
 from sklearn import preprocessing
-
-
 from model import UNet2D
 from misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
 from utils.dataset import BasicDataset
+from utils.dim_reduction_utils import TSNE, PCA, LLE, Isomap
+from skimage.transform import resize
 
+from torch.utils.tensorboard import SummaryWriter
+from utils.dataset import BasicDataset, NumpyDataset
+from torch.utils.data import DataLoader, random_split
 
-class CNNLayerVisualization():
+from os import listdir
+from os.path import isfile, join
+from os import walk
+import json
 
-    """
-        Produces an image that minimizes the loss of a convolution
-        operation for a specific layer and filter
-    """
+np.random.seed(seed=0)
 
-    def __init__(self, model, selected_layer, selected_filter):
-        self.model = model
-        self.model.eval()
-        self.selected_layer = selected_layer
-        self.selected_filter = selected_filter
-        self.conv_output = 0
-        # Create the folder to export images if not exists
-        if not os.path.exists('../generated'):
-            os.makedirs('../generated')
-
-    def hook_layer(self):
-        def hook_function(module, grad_in, grad_out):
-            # Gets the conv output of the selected filter (from selected layer)
-            self.conv_output = grad_out[0, self.selected_filter]
-
-        # Hook the selected layer
-        self.model[self.selected_layer].register_forward_hook(hook_function)
-
-    def visualise_layer_with_hooks(self):
-        # Hook the selected layer
-        self.hook_layer()
-        # Generate a random image
-        random_image = np.uint8(np.random.uniform(0, 255, (128, 128, 1)))
-        # Process image and return variable
-        processed_image = preprocess_image(random_image, False)
-        # Define optimizer for the image
-        optimizer = torch.optim.SGD(
-                net.parameters(),
-                lr=0.001,
-                momentum=0.9,
-                nesterov=True,
-                weight_decay=0
-            )
-        for i in range(1, 31):
-            optimizer.zero_grad()
-            # Assign create image to a variable to move forward in the model
-            full_img = Image.open(os.path.join(os.getcwd(),'data','input_s.jpg'))
-            full_img = np.array(full_img)
-            img = torch.from_numpy(BasicDataset.preprocess(full_img, (128,128)))
-
-            x = img.unsqueeze(0)
-            x = x[:, 0, :, :].reshape(1, 1, 128, 128)
-            for index, layer in enumerate(self.model):
-                # Forward pass layer by layer
-                # x is not used after this point because it is only needed to trigger
-                # the forward hook function
-                x = layer(x)
-                # Only need to forward until the selected layer is reached
-                if index == self.selected_layer:
-                    # (forward hook function triggered)
-                    break
-            # Loss function is the mean of the output of the selected layer/filter
-            # We try to minimize the mean of the output of that specific filter
-            loss = -torch.mean(self.conv_output)
-            print('Iteration:', str(i), 'Loss:', "{0:.2f}".format(loss.data.numpy()))
-            # Backward
-            loss.backward()
-            # Update image
-            optimizer.step()
-            # Recreate image
-            self.created_image = recreate_image(x)
-            # Save image
-            if i % 5 == 0:
-                im_path = '../generated/layer_vis_l' + str(self.selected_layer) + \
-                          '_f' + str(self.selected_filter) + '_iter' + str(i) + '.jpg'
-                save_image(self.created_image, im_path)
-
+torch.random.manual_seed(seed=0)
 activation = {}
 
+
 def get_activation(name):
-    def hook(model, input, output):
-        activation[name] = output.detach()
+	def hook(model, input, output):
+		activation[name] = output.detach()
 
-    return hook
-
-
-def remove_far(input):
-
-    mean = np.absolute(np.mean(input, axis=0)).sum()
-    sd = np.absolute(np.std(input, axis=0)).sum()
-
-    final_list = [x for x in input if (np.absolute(x).sum() > mean - 2 * sd)]
-    final_list = [x for x in final_list if (np.absolute(x).sum() < mean + 2 * sd)]
-    return np.array((final_list))
-
-def get_mid_output(net, img, layer = 'init_path'):
-    # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
-    getattr(net, layer).register_forward_hook(get_activation(layer)) # get the layer by it's name
-    net.eval()
-    full_img = np.array(img)
-    img = torch.from_numpy(BasicDataset.preprocess(full_img, (128, 128)))
-
-    img = img.unsqueeze(0)
-    img = img.to(device=device, dtype=torch.float32)
-
-    with torch.no_grad():
-        output = net(img)
-        output_mid = activation[layer].cpu().detach().numpy()[0]
-
-    return output_mid
+	return hook
 
 
-def scatter_output(output_mid, fig, col):
+def remove_far(input):  # unused
+	mean = np.absolute(np.mean(input, axis=0)).sum()
+	sd = np.absolute(np.std(input, axis=0)).sum()
 
-    output_mid = output_mid.reshape(16, -1)
-    output_2d = sklearn.manifold.TSNE(n_components=2, perplexity=5).fit_transform(output_mid).astype(np.float)
-    # output_2d = remove_far(output_2d)
-    plt.scatter(x=output_2d[:, 0], y=output_2d[:, 1], c=col)
-    # ax.scatter(*zip(*output_2d), c=col)
+	final_list = [x for x in input if (np.absolute(x).sum() > mean - 2 * sd)]
+	final_list = [x for x in final_list if (np.absolute(x).sum() < mean + 2 * sd)]
+	return np.array((final_list))
 
-def new_scatter(output_mid, axis, filter, perp, col):
-    # for i in range(0, kernels_num//2):
-    #     for k in range(0, 2):
-            output_mid[filter] = scaler.fit_transform(output_mid[filter])
-            output_2d = sklearn.manifold.TSNE(n_components=2, perplexity=perp).fit_transform(output_mid[filter]).astype(np.float)
 
-            output_2d = scaler.fit_transform(output_2d)
+def get_mid_output(net, img, layer='init_path', device='cuda'):
+	# img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
+	getattr(net, layer).register_forward_hook(get_activation(layer))  # get the layer by it's name
+	net.eval()
+	# full_img = np.array(img)
+	# img2 = torch.from_numpy(BasicDataset.preprocess(full_img, (128, 128)))
+	# img2 = img2.unsqueeze(0)
+	img = img.to(device=device, dtype=torch.float32)
 
-            axis.scatter(x=output_2d[:, 0], y=output_2d[:, 1], c=col)
-            # axis[k, i].set_title("")
-            # axis[k, i].set_box_aspect(1)
+	with torch.no_grad():
+		output = torch.sigmoid(net(img)).cpu().detach().numpy()[0, 0]
+		output_mid = activation[layer].cpu().detach().numpy()[0]
+
+	return output_mid, output
+
+
+def scatter_output(output_mid, col):
+	output_mid = output_mid.reshape(16, -1)
+	output_2d = sklearn.manifold.TSNE(n_components=2, perplexity=5).fit_transform(output_mid).astype(np.float)
+	# output_2d = remove_far(output_2d)
+	plt.scatter(x=output_2d[:, 0], y=output_2d[:, 1], c=col)
+
+
+# ax.scatter(*zip(*output_2d), c=col)
+
+
+def pixel_to_coordinate(output_mid, threshold=0.5):
+	coord = []
+	for output in output_mid:
+		for i in range(output.shape[0]):
+			for k in range(output.shape[1]):
+				if output[i, k] > threshold:
+					coord.append([i, k])
+		return np.array(coord)
+
+
+def threshold_transform(output_mid, threshold=0):  # TODO: more efficient way
+	for output in output_mid:
+		for i in range(output.shape[0]):
+			for k in range(output.shape[1]):
+				if output[i, k] > threshold:
+					output[i, k] = 1
+				else:
+					output[i, k] = 0
+	return output_mid
+
+
+def coord_scatter(output, axis, perp, col):
+	scaler = preprocessing.MinMaxScaler()
+	output = pixel_to_coordinate(output)
+	output = scaler.fit_transform(output)
+	output_2d = sklearn.manifold.TSNE(n_components=2, perplexity=perp).fit_transform(output).astype(
+		np.float)
+
+	output_2d = scaler.fit_transform(output_2d)
+
+	axis.scatter(x=output_2d[:, 0], y=output_2d[:, 1], c=col, s=20)
+	return output_2d
+
+
+def show_images(images, folder="E:\\Thesis\\unet\\data\\images\\"):
+	k = 0
+	for image in images:
+		for i in range(0, image.shape[0]):
+			im = Image.fromarray(image[i].astype(np.uint8))
+			im.save(folder + "image" + str(k) + '_filter' + str(i) + ".jpg")
+			im.close()
+			k += 1
+
+def crop_mask(image_mid, mask):  # TODO: Find more efficient way
+	if image_mid.shape[1] == mask.shape[0]:
+		for i in range(0, image_mid.shape[0]):
+			image_mid[i] = image_mid[i] * (mask > 0.5)
+
+	# plt.imshow(image_mid[i], cmap='gray', vmin=0, vmax=1)
+	# plt.show()
+	# plt.imshow(mask, cmap='gray', vmin=0, vmax=1)
+	# plt.show()
+	# plt.imshow(image_mid[i] * (mask > 0.5), vmin=0, vmax=1)
+	# plt.show()
+	return image_mid
+
+
+def resize_image(image, size):
+	if len(image.shape) == 3:
+		new_image = np.zeros((image.shape[0], size[0], size[1]))
+		for filter_pos in range(0, image.shape[0]):
+			new_image[filter_pos] = nearest_neighbor_scaling(image[filter_pos], size)
+	elif len(image.shape) == 2:
+		new_image = nearest_neighbor_scaling(image, size)
+	else:
+		new_image = None
+	return new_image
+
+
+def nearest_neighbor_scaling(source, size):
+	target = np.zeros(size)
+	for x in range(0, size[0]):
+		for y in range(0, size[1]):
+			srcX = int(round(float(x) / float(size[0]) * float(source.shape[0])))
+			srcY = int(round(float(y) / float(size[1]) * float(source.shape[1])))
+			srcX = min(srcX, source.shape[0] - 1)
+			srcY = min(srcY, source.shape[1] - 1)
+			target[x, y] = source[srcX, srcY]
+
+	return target
+
+
+def get_data(sample_num):
+	# image_sources = np.array(['input_p_1.jpg', 'input_s.jpg', 'input_p_2.jpg'])
+	# image_legends = np.array(['Source domain', 'Target domain', 'Source domain2'])
+
+	""" Images """
+	folders = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test2\\'
+
+	foldernames = np.array(walk(folders).__next__()[1])
+
+	test_loaders = []
+	for folder in foldernames:
+		# TODO: Check image  size (Can we work with reduced from here(No))
+		dataset = BasicDataset(os.path.join(folders, folder, 'images/'), os.path.join(folders, folder, 'masks/'), 40,
+		                       (128, 128), '_ss')
+		subset = np.random.choice(range(len(dataset)), sample_num, replace=False)
+		dataset = torch.utils.data.Subset(dataset, subset)
+		test_loaders.append((DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4, pin_memory=True), folder))
+	test_loaders = np.array(test_loaders)
+
+	return test_loaders
+
+
+def get_map(mask, pred, coeff=0.5):  # TODO: check for errors
+	"""
+		0: True Positive
+		1: True Negative
+		2: False Positive
+		3: False Negative
+	"""
+
+	eval_map = np.zeros(mask.shape)
+	for i in range(0, mask.shape[0]):
+		for k in range(0, mask.shape[1]):
+			if mask[i, k] > 0.5:
+				if pred[i, k] > coeff:
+					eval_map[i, k] = 0
+				else:
+					eval_map[i, k] = 2
+			if mask[i, k] == 0.5:
+				if pred[i, k] < coeff:
+					eval_map[i, k] = 1
+				else:
+					eval_map[i, k] = 3
+
+	# plt.imshow(mask, cmap='gray', vmin=0.5, vmax=1)
+	# plt.show()
+	# plt.imshow(pred, cmap='gray', vmin=0.5, vmax=1)
+	# plt.show()
+	# plt.imshow(eval_map, vmin=2, vmax=3)
+	# plt.show()
+
+	return eval_map
+
+
+def c_to_n(coord, arr_size):
+	return coord[0] * arr_size + coord[1]
+
+
+def n_to_c(num, arr_size):
+	x = num // arr_size
+	y = num - x * arr_size
+	return x, y
+
+
+
+def get_images_by_id(net, layer_name, id):
+
+
+
+	test_loaders=get_data(4)
+
+	image_mids_temp = []
+	image_mids = []
+
+	true_masks = []
+	names = []
+
+	test_loader = test_loaders[id[0]]
+
+	image_mids_temp = []
+	true_masks = []
+
+	names.append(test_loader[1])
+	test_loader = test_loader[0]
+	batch_id = 0  # TODO: Find better solution for iteration
+	for batch in test_loader:
+		image, true_mask = batch['image'], batch['mask']
+		true_mask = torch.sigmoid(true_mask)
+		true_mask = true_mask.cpu().numpy()[0, 0]
+		true_masks.append(true_mask)
+
+		image_mid, net_output = get_mid_output(net, image, layer_name)
+
+		if batch_id == 0:
+			batch_id += 1
+			continue
+		im = Image.fromarray((true_mask * 255).astype(np.uint8))
+		im.save("mask_"+str(names[-1])+"_"+str(batch_id)+".jpg")
+
+		im = Image.fromarray((net_output * 255).astype(np.uint8))
+		im.save("output_"+str(names[-1])+"_"+str(batch_id)+".jpg")
+
+		im = Image.fromarray(((image.cpu().numpy()[0, 0]) * 255).astype(np.uint8))
+		im.save("original_"+str(names[-1])+"_"+str(batch_id)+".jpg")
+		batch_id += 1
+
+		break
+
+		batch_id += 1
+	image_mids_temp = np.array(image_mids_temp)
+
+
+	image_mids.append(image_mids_temp)
+
+
+
+	return image_mids, names
+
+
+
+
+class Reductor():
+	def __init__(self, model_path="E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Train2\checkpoints\CP_epoch200.pth"):
+
+		"""Parameters Init"""
+		self.names = []
+
+		self.image_mids = []
+		self.eval_maps = []
+		self.input = []
+		self.output = []
+		self.input_img_size = (128, 128)
+		self.activ_img_size = (8,8)
+
+
+		""" Net setup """
+		self.net = UNet2D(n_chans_in=1, n_chans_out=1)
+		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+		self.net.to(device=device)
+		self.net.load_state_dict(torch.load(model_path, map_location=device))
+
+
+
+
+	def get_database(self, net, test_loaders, layer_name, threshold, img_size, mask_cut, upsampling, plot_mode):
+		image_mids_temp = []
+		image_mids = []
+		eval_maps_temp = []
+		eval_maps = []
+		true_masks = []
+		for test_loader in test_loaders:
+			image_mids_temp = []
+			eval_maps_temp = []
+			true_masks = []
+			input_temp = []
+			self.names.append(test_loader[1])
+			test_loader = test_loader[0]
+			batch_id = 0  # TODO: Find better solution for iteration
+			for batch in test_loader:
+				image, true_mask = batch['image'], batch['mask']
+				true_mask = torch.sigmoid(true_mask)
+				true_mask = true_mask.cpu().numpy()[0, 0]
+				true_masks.append(true_mask)
+
+				image_mid, net_output = get_mid_output(net, image, layer_name)
+
+				if threshold is not None:
+					image_mid = threshold_transform(image_mid, threshold)
+				"""Evaluation map preparation"""
+
+				if image_mid.shape[1] != true_mask.shape[0]:
+					true_mask = resize_image(true_mask, (image_mid.shape[1], image_mid.shape[2]))
+
+				if image_mid.shape[1] != net_output.shape[0]:
+					net_output = resize_image(net_output, (image_mid.shape[1], image_mid.shape[2]))
+
+				eval_map = get_map(true_mask, net_output)
+
+				if img_size is not None:
+					if image_mid.shape[1] > img_size[0] | upsampling:
+						# if upsampling mode  or initial image is bigger than requested
+						image_mid = resize_image(image_mid, img_size)
+						eval_map = resize_image(eval_map, img_size)
+						true_mask = resize_image(true_mask, img_size)
+
+				if mask_cut == 'true':
+					image_mid = crop_mask(image_mid, true_mask)
+				elif mask_cut == 'predict':
+					image_mid = crop_mask(image_mid, net_output)
+
+				"""Plot mode"""
+				if batch_id % plot_mode == 0:
+					image_mids_temp.append(image_mid / plot_mode)
+				else:
+					image_mids_temp[-1] += image_mid / plot_mode
+
+				eval_maps_temp.append(eval_map)  # no plot_mode considered
+				input_temp.append(image.numpy())
+				batch_id += 1
+
+			image_mids_temp = np.array(image_mids_temp)
+			eval_maps_temp = np.array(eval_maps_temp)
+			input_temp = np.array(input_temp)
+
+			self.image_mids.append(image_mids_temp)
+			self.eval_maps.append(eval_maps_temp)
+			self.input.append(input_temp)
+
+		self.image_mids = np.array(self.image_mids)
+		self.eval_maps = np.array(self.eval_maps)
+		self.input = np.array(self.input)
+		self.names = np.array(self.names)
+
+
+	def reduction(self, algos, modes, layer, threshold, img_size, sample_num, mask_cut, perp=None, n_iter=500, save=False):
+
+
+		upsampling = False
+
+		# TODO: find better way
+		# if perp is None:
+		# 	perp_range = {
+		# 		'feature': [30, 61, 10],
+		# 		'pixel': [1, 4, 1]
+		# 	}
+		# else:
+		# 	perp_range = {
+		# 		'feature': [perp, perp + 1, 1],
+		# 		'pixel': [perp, perp + 1, 1]
+		# 	}
+		self.activ_img_size = img_size
+		img_types = ['TP', 'TN', 'FP', 'FN']
+
+		"""Plot mode structure """  # number of images to stack on each other (Doesn't work)
+		plot_mode = 1
+		desired_points = 1000  # Works not everywhere
+
+
+		test_loaders = get_data(sample_num)
+
+		self.get_database(self.net, test_loaders, layer, threshold, img_size, mask_cut, upsampling, plot_mode)
+
+		""" Dimensionality reduction """
+		# TODO: cycle to iterate through samples?
+		for algo in algos:
+			for mode in modes:
+				if algo == 'tsne':
+					orig_shape = self.image_mids.shape
+					if perp is None:
+						if mode == 'pixel':
+							perp_range = range(1, self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]).shape[0], int(
+							np.around(self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]).shape[0] / 10)))
+						else:
+							perp_range = range(1, self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1).shape[1], int(
+							np.around(self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1).shape[1] / 10)))
+					else:
+						perp_range = range(perp, perp + 1, 1)
+					for perp in perp_range:
+						# range(perp_range[mode][0], perp_range[mode][1], perp_range[mode][2]):
+						fig = plt.figure()
+						axis = fig.add_axes([0, 0, 1, 1])
+
+						all_outputs = []  # np.zeros([image_mids.shape[0], img_size[0] * img_size[1]], dtype=np.float)
+
+						orig_shape = self.image_mids.shape
+						tsne = TSNE(mode, perp, n_iter=n_iter)
+						if mode == 'pixel':
+							# 	tsne.transform(image_mids[l, 0].reshape(shape[1], shape[2], shape[3]), save=False)
+							tsne.transform(self.image_mids.swapaxes(2,-1).reshape(-1,orig_shape[2]),
+							               save=False)
+						else:
+							tsne.transform(self.image_mids.swapaxes(2,0).reshape(orig_shape[0]*orig_shape[2],-1),
+							               save=False)
+
+						if mode == 'pixel':
+							outputs = tsne.outputs[0].reshape(orig_shape[0], orig_shape[1], orig_shape[3],
+							                                  orig_shape[4], 2)
+							for dom in range(0, orig_shape[0]):
+								for i in range(0, 4):
+									output = outputs[dom, self.eval_maps[dom] == i]
+									outputs_subset = np.random.choice(range(len(output)),
+									                                  min(desired_points, len(output)),
+									                                  replace=False)
+									if len(outputs_subset > 0):
+										axis.scatter(x=output[outputs_subset, 0],
+										             y=output[outputs_subset, 1], label=self.names[dom] + ' ' + img_types[i], s=20,
+										             alpha=0.7)
+								all_outputs.append(np.concatenate([outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2]]))
+								# all_outputs.append(np.concatenate([ outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2],
+								#                                     outputs[dom, self.eval_maps[dom] == 1], outputs[dom, self.eval_maps[dom] == 3]]))
+						else:
+							# TODO: subset length is wrong
+							outputs = tsne.outputs[0].reshape(orig_shape[0],orig_shape[2],-1)
+							for dom in range(0, orig_shape[0]):
+								outputs_subset = np.random.choice(range(len(outputs[dom])),
+								                                  min(desired_points, len(outputs[dom])),
+								                                  replace=False)
+								axis.scatter(x=outputs[dom,outputs_subset][:, 0],
+								             y=outputs[dom, outputs_subset][:, 1], label=self.names[dom], s=20, alpha=0.7)
+
+								all_outputs.append(outputs[dom, outputs_subset])
+
+						axis.legend()
+						if save:
+							fig.savefig(
+								"data/graphs/tsne/" + str(layer_name) + "_mode_" + str(tsne.mode) + "_thresh_" + str(
+									threshold) + "_cut_" + str(mask_cut) + "_perp_" + str(
+									tsne.perp) + str(img_size) + ".jpg")
+						plt.close(fig)
+
+						self.output = np.array(all_outputs)
+
+				if algo == 'pca':
+					fig = plt.figure()
+					axis = fig.add_axes([0, 0, 1, 1])
+					all_outputs = []
+					for l in range(0, self.image_mids.shape[0]):
+						shape = self.image_mids[l].shape
+						pca = PCA(mode)
+						pca.transform(self.image_mids[l].reshape(shape[0] * shape[1], shape[2], shape[3]),
+						              save=False)
+
+						outputs = np.array(pca.outputs).reshape(-1, 2)
+						outputs_subset = np.random.choice(range(len(outputs)),
+						                                  min(desired_points, len(outputs)),
+						                                  replace=False)
+						axis.scatter(x=outputs[outputs_subset][:, 0],
+						             y=outputs[outputs_subset][:, 1], label=self.names[l], s=20, alpha=0.7)
+						all_outputs.append(outputs[outputs_subset])
+					axis.legend()
+					if save:
+						fig.savefig(
+							"data/graphs/pca/" + str(layer_name) + "_mode_" + str(pca.mode) + "_thresh_" + str(
+								threshold) + "_cut_" + str(mask_cut) + str(img_size) + ".jpg")
+					plt.close(fig)
+					self.output=np.array(all_outputs)
+
+				if algo == 'isomap':
+					isomap = Isomap(mode)
+					isomap.transform(self.image_mids, save=False)
+
+					fig = plt.figure()
+					axis = fig.add_axes([0, 0, 1, 1])
+
+					outputs = np.array(isomap.outputs).reshape(-1, 2)
+					outputs_subset = np.random.choice(range(len(outputs)), min(desired_points, len(outputs)),
+					                                  replace=False)
+					axis.scatter(x=outputs[outputs_subset][:, 0],
+					             y=outputs[outputs_subset][:, 1], label=self.names[l], s=20, alpha=0.7)
+					axis.legend()
+					fig.savefig(
+						"data/graphs/isomap/" + str(layer_name) + "_mode_" + str(isomap.mode) + str(
+							img_size) + ".jpg")
+					plt.close(fig)
+
+				if algo == 'lle':
+					lle = LLE(mode)
+					lle.transform(self.image_mids)
+
+					fig = plt.figure()
+					axis = fig.add_axes([0, 0, 1, 1])
+
+					outputs = np.array(lle.outputs).reshape(-1, 2)
+					outputs_subset = np.random.choice(range(len(outputs)), min(desired_points, len(outputs)),
+					                                  replace=False)
+					axis.scatter(x=outputs[outputs_subset][:, 0],
+					             y=outputs[outputs_subset][:, 1], label=self.names[l], s=20, alpha=0.7)
+					axis.legend()
+					fig.savefig(
+						"data/graphs/lle/" + str(layer_name) + "_mode_" + str(lle.mode) + str(
+							img_size) + ".jpg")
+					plt.close(fig)
+
+				if algo == 'full':
+					orig_shape = self.image_mids.shape
+					if perp is None:
+						if mode == 'pixel':
+							perp_range = range(1, self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]).shape[0], int(
+							np.around(self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]).shape[0] / 10)))
+						else:
+							perp_range = range(1, self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1).shape[1], int(
+							np.around(self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1).shape[1] / 10)))
+					else:
+						perp_range = range(perp, perp + 1, 1)
+					for perp in perp_range:
+						# range(perp_range[mode][0], perp_range[mode][1], perp_range[mode][2]):
+						fig = plt.figure()
+						axis = fig.add_axes([0, 0, 1, 1])
+
+						all_outputs = []  # np.zeros([image_mids.shape[0], img_size[0] * img_size[1]], dtype=np.float)
+
+						orig_shape = self.image_mids.shape
+						tsne = TSNE(mode, perp, n_iter=n_iter, init='pca')
+						if mode == 'pixel':
+							# 	tsne.transform(image_mids[l, 0].reshape(shape[1], shape[2], shape[3]), save=False)
+							tsne.transform(self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]),
+							               save=False)
+						else:
+							tsne.transform(self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1),
+							               save=False)
+
+						if mode == 'pixel':
+							outputs = tsne.outputs[0].reshape(orig_shape[0], orig_shape[1], orig_shape[3],
+							                                  orig_shape[4], 2)
+							for dom in range(0, orig_shape[0]):
+								for i in range(0, 4):
+									output = outputs[dom, self.eval_maps[dom] == i]
+									outputs_subset = np.random.choice(range(len(output)),
+									                                  min(desired_points, len(output)),
+									                                  replace=False)
+									if len(outputs_subset > 0):
+										axis.scatter(x=output[outputs_subset, 0],
+										             y=output[outputs_subset, 1],
+										             label=self.names[dom] + ' ' + img_types[i], s=20,
+										             alpha=0.7)
+								all_outputs.append(np.concatenate(
+									[outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2]]))
+						# all_outputs.append(np.concatenate([ outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2],
+						#                                     outputs[dom, self.eval_maps[dom] == 1], outputs[dom, self.eval_maps[dom] == 3]]))
+						else:
+							# TODO: subset length is wrong
+							outputs = tsne.outputs[0].reshape(orig_shape[0], orig_shape[2], -1)
+							for dom in range(0, orig_shape[0]):
+								outputs_subset = np.random.choice(range(len(outputs[dom])),
+								                                  min(desired_points, len(outputs[dom])),
+								                                  replace=False)
+								axis.scatter(x=outputs[dom, outputs_subset][:, 0],
+								             y=outputs[dom, outputs_subset][:, 1], label=self.names[dom], s=20,
+								             alpha=0.7)
+
+								all_outputs.append(outputs[dom, outputs_subset])
+
+						axis.legend()
+						if save:
+							fig.savefig(
+								"data/graphs/full/" + str(layer_name) + "_mode_" + str(tsne.mode) + "_thresh_" + str(
+									threshold) + "_cut_" + str(mask_cut) + "_perp_" + str(
+									tsne.perp) + str(img_size) + ".jpg")
+						plt.close(fig)
+
+						self.output = np.array(all_outputs)
+					# for perp in range(perp_range[mode][0], perp_range[mode][1], perp_range[mode][2]):
+					# 	fig = plt.figure()
+					# 	axis = fig.add_axes([0, 0, 1, 1])
+					# 	for l in range(0, self.image_mids.shape[0]):
+					# 		shape = self.image_mids[l].shape
+					# 		pca = PCA(mode)
+					#
+					# 		fit = True
+					# 		# TODO check for right
+					# 		mids = self.image_mids[l].reshape(shape[0] * shape[1], shape[2], shape[3])
+					# 		for image_mid in mids:
+					# 			image_mid = pca.get_manifold(image_mid, fit=fit)
+					# 			fit = False
+					#
+					# 		tsne = TSNE(mode, perp)
+					# 		tsne.transform(mids, save=False)  # !!
+					#
+					# 		outputs = np.array(tsne.outputs).reshape(-1, 2)
+					# 		outputs_subset = np.random.choice(range(len(outputs)),
+					# 		                                  min(desired_points, len(outputs)),
+					# 		                                  replace=False)
+					# 		axis.scatter(x=outputs[outputs_subset][:, 0],
+					# 		             y=outputs[outputs_subset][:, 1], label=self.names[l], s=20, alpha=0.7)
+					# 	axis.legend()
+					# 	fig.savefig(
+					# 		"data/graphs/full/" + str(layer_name) + "_mode_" + str(tsne.mode) + "_perp_" + str(
+					# 			tsne.perp) + str(img_size) + ".jpg")
+					#
+					# 	plt.close(fig)
+
+
+	def get_data(self):
+		keys = ['input', 'output', 'names', 'eval_maps', 'image_mids']
+		self.__dict__.pop('net', None)
+
+		return self.__dict__
+
+
+
+	@staticmethod
+	def auto(algos, modes, layer_name, threshold, img_size, sample_num, mask_cut,
+					          perp, n_iter, save):
+		reductor= Reductor()
+		reductor.reduction(algos, modes, layer_name, threshold, img_size, sample_num, mask_cut,
+					          perp, n_iter, save)
+
+		return reductor
 
 if __name__ == '__main__':
+	""" Variables setup """
 
-    #
-    # fig3d = plt.figure()
-    # ax = fig3d.add_subplot(111, projection='3d')
-    scaler = preprocessing.MinMaxScaler()
-    cnn_layer = 1
-    filter_pos = 0
-    # Fully connected layer is not needed
-    net = UNet2D(n_chans_in=1, n_chans_out=1)
+	algos = ['full','pca','tsne']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
+	modes = ['pixel', 'feature']  # ['feature', 'pixel','pic_to_coord']  # smth else?
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    net.to(device='cuda')
+	layers = ['init_path', 'down1', 'down2', 'down3', 'up3', 'up2', 'up1', 'out_path']
 
-    model_path = "E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Test\checkpoints\CP_epoch79.pth"
-    net.load_state_dict(torch.load(model_path, map_location=device))
-    for perp in range(1,6):
-        for filter_pos in range(0, 16):
-            img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_1.jpg'))
-            output_mid = get_mid_output(net,img)
+	thresholds = [None]
+	img_size = (64, 64)
+	show_im = False
+	crop_im = False
+	sample_num = 2
+	perp = None
+	save = True
 
-            kernels_num = output_mid.shape[0]
-            # figure, axis = plt.subplots(2, kernels_num)
-            fig = plt.figure()
-            axis = fig.add_axes([0, 0, 1, 1])
+	mask_cuts = ['predict']  # 'true', 'predict', None
+	n_init = 250
 
-            new_scatter(output_mid, axis, filter_pos, perp, 'red')
-
-            img = Image.open(os.path.join(os.getcwd(), 'data', 'input_s.jpg'))
-            output_mid = get_mid_output(net, img)
-            new_scatter(output_mid, axis, filter_pos, perp, 'blue')
-
-            img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_2.jpg'))
-            output_mid = get_mid_output(net, img)
-            new_scatter(output_mid, axis, filter_pos, perp, 'pink')
-
-            # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_4.jpg'))
-            # output_mid = get_mid_output(net, img)
-            # new_scatter(output_mid, axis, 'r')
-            #
-            # img = Image.open(os.path.join(os.getcwd(), 'data', 'input_p_5.jpg'))
-            # output_mid = get_mid_output(net, img)
-            # new_scatter(output_mid, axis, 'r')
-
-            img = Image.open(os.path.join(os.getcwd(), 'data', 'mask.jpg'))
-            output_mid = get_mid_output(net, img)
-            new_scatter(output_mid, axis, filter_pos, perp, 'black')
-            fig.savefig("data/graphs/filt_"+str(filter_pos)+"perp_"+str(perp)+".jpg")
-            # plt.show()
-
-    # layer_vis = CNNLayerVisualization(net, cnn_layer, filter_pos)
-    #
-    # # Layer visualization with pytorch hooks
-    # layer_vis.visualise_layer_with_hooks()
-    #
-    # # Layer visualization without pytorch hooks
-    # # layer_vis.visualise_layer_without_hooks()
+	n_iters = [500]
+	""" Image processing and layer output """
+	for n_iter in n_iters:
+		for threshold in thresholds:
+			for mask_cut in mask_cuts:
+				for layer_name in layers:
+					Reductor.auto(algos, modes, layer_name, threshold, img_size, sample_num, mask_cut,
+					          perp, n_iter, save)

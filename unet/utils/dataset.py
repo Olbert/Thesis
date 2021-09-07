@@ -1,5 +1,6 @@
 from os.path import splitext
 from os import listdir
+import os
 import numpy as np
 from glob import glob
 import torch
@@ -8,7 +9,8 @@ import logging
 from PIL import Image
 import nibabel as nib
 import cv2
-from .dataset_convert import preprocess_image
+from utils.dataset_convert import preprocess_image
+
 class BasicDataset(Dataset):
     def __init__(self, imgs_dir, masks_dir, slices, size=(256, 256), mask_suffix=''):
         self.imgs_dir = imgs_dir
@@ -42,8 +44,8 @@ class BasicDataset(Dataset):
     def __getitem__(self, i):
         idx = self.ids[np.int(i/self.slices)]
         # TODO change glob
-        mask_file = glob(self.masks_dir + idx + self.mask_suffix + '.*')
-        img_file = glob(self.imgs_dir + idx + '.*')
+        mask_file = glob(os.path.join(self.masks_dir,idx + self.mask_suffix+ '.*'))
+        img_file = glob(os.path.join(self.imgs_dir,  idx + '.*'))
 
         assert len(mask_file) == 1, \
             f'Either no mask or multiple masks found for the ID {idx}: {mask_file}'

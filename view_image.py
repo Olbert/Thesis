@@ -14,6 +14,7 @@ img = img.get_fdata()
 slice_0 = img[42, :, :]
 slice_1 = img[:, 70, :]
 slice_2 = img[:, :, 120]
+
 show_slices([slice_0, slice_1, slice_2])
 plt.suptitle("Center slices for EPI image")
 
