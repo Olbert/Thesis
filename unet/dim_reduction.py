@@ -287,7 +287,7 @@ class Reductor():
 		self.output = []
 		self.input_img_size = (128, 128)
 		self.activ_img_size = (8,8)
-
+		self.coord = np.zeros(self.activ_img_size)
 
 		""" Net setup """
 		self.net = UNet2D(n_chans_in=1, n_chans_out=1)
@@ -370,7 +370,6 @@ class Reductor():
 
 	def reduction(self, algos, modes, layer, threshold, img_size, sample_num, mask_cut, perp=None, n_iter=500, save=False):
 
-
 		upsampling = False
 
 		# TODO: find better way
@@ -389,7 +388,7 @@ class Reductor():
 
 		"""Plot mode structure """  # number of images to stack on each other (Doesn't work)
 		plot_mode = 1
-		desired_points = 1000  # Works not everywhere
+		desired_points = 100000  # Works not everywhere
 
 
 		test_loaders = get_data(sample_num)
@@ -422,11 +421,9 @@ class Reductor():
 						tsne = TSNE(mode, perp, n_iter=n_iter)
 						if mode == 'pixel':
 							# 	tsne.transform(image_mids[l, 0].reshape(shape[1], shape[2], shape[3]), save=False)
-							tsne.transform(self.image_mids.swapaxes(2,-1).reshape(-1,orig_shape[2]),
-							               save=False)
+							tsne.transform(self.image_mids.swapaxes(2,-1).reshape(-1,orig_shape[2]))
 						else:
-							tsne.transform(self.image_mids.swapaxes(2,0).reshape(orig_shape[0]*orig_shape[2],-1),
-							               save=False)
+							tsne.transform(self.image_mids.swapaxes(2,0).reshape(orig_shape[0]*orig_shape[2],-1))
 
 						if mode == 'pixel':
 							outputs = tsne.outputs[0].reshape(orig_shape[0], orig_shape[1], orig_shape[3],
@@ -441,9 +438,11 @@ class Reductor():
 										axis.scatter(x=output[outputs_subset, 0],
 										             y=output[outputs_subset, 1], label=self.names[dom] + ' ' + img_types[i], s=20,
 										             alpha=0.7)
-								all_outputs.append(np.concatenate([outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2]]))
+								all_outputs.append(outputs[dom])
+								# all_outputs.append(np.concatenate([outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2]]))
 								# all_outputs.append(np.concatenate([ outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2],
 								#                                     outputs[dom, self.eval_maps[dom] == 1], outputs[dom, self.eval_maps[dom] == 3]]))
+
 						else:
 							# TODO: subset length is wrong
 							outputs = tsne.outputs[0].reshape(orig_shape[0],orig_shape[2],-1)
@@ -455,7 +454,8 @@ class Reductor():
 								             y=outputs[dom, outputs_subset][:, 1], label=self.names[dom], s=20, alpha=0.7)
 
 								all_outputs.append(outputs[dom, outputs_subset])
-
+						# plt.scatter(outputs[0][:, 0], outputs[0][:, 1])
+						# plt.show()
 						axis.legend()
 						if save:
 							fig.savefig(
@@ -470,20 +470,25 @@ class Reductor():
 					fig = plt.figure()
 					axis = fig.add_axes([0, 0, 1, 1])
 					all_outputs = []
-					for l in range(0, self.image_mids.shape[0]):
-						shape = self.image_mids[l].shape
-						pca = PCA(mode)
-						pca.transform(self.image_mids[l].reshape(shape[0] * shape[1], shape[2], shape[3]),
-						              save=False)
-
-						outputs = np.array(pca.outputs).reshape(-1, 2)
-						outputs_subset = np.random.choice(range(len(outputs)),
-						                                  min(desired_points, len(outputs)),
+					fit = True
+					pca = PCA(mode, fit=fit)
+					for dom in range(0, self.image_mids.shape[0]):
+						shape = self.image_mids[dom].shape
+						# TODO: Check how it is better to feed samples, together or separately
+						pca.transform(self.image_mids[dom].swapaxes(1,-1).reshape(-1,shape[1]))
+						pca.fit = False
+						outputs = np.array(pca.outputs[dom]).reshape(-1, 2)
+						outputs_subset = np.random.choice(range(outputs.shape[0]),
+						                                  min(desired_points, outputs.shape[0]),
 						                                  replace=False)
 						axis.scatter(x=outputs[outputs_subset][:, 0],
-						             y=outputs[outputs_subset][:, 1], label=self.names[l], s=20, alpha=0.7)
-						all_outputs.append(outputs[outputs_subset])
+						             y=outputs[outputs_subset][:, 1], label=self.names[dom], s=20, alpha=0.7)
+						# plt.scatter(x=outputs[outputs_subset][:, 0],
+						#              y=outputs[outputs_subset][:, 1], label=self.names[dom], s=20, alpha=0.7)
+						# plt.show()
+						all_outputs.append(outputs[outputs_subset].reshape(shape[0],shape[2],shape[3],2))
 					axis.legend()
+
 					if save:
 						fig.savefig(
 							"data/graphs/pca/" + str(layer_name) + "_mode_" + str(pca.mode) + "_thresh_" + str(
@@ -493,7 +498,7 @@ class Reductor():
 
 				if algo == 'isomap':
 					isomap = Isomap(mode)
-					isomap.transform(self.image_mids, save=False)
+					isomap.transform(self.image_mids)
 
 					fig = plt.figure()
 					axis = fig.add_axes([0, 0, 1, 1])
@@ -549,11 +554,9 @@ class Reductor():
 						tsne = TSNE(mode, perp, n_iter=n_iter, init='pca')
 						if mode == 'pixel':
 							# 	tsne.transform(image_mids[l, 0].reshape(shape[1], shape[2], shape[3]), save=False)
-							tsne.transform(self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]),
-							               save=False)
+							tsne.transform(self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]))
 						else:
-							tsne.transform(self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1),
-							               save=False)
+							tsne.transform(self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1))
 
 						if mode == 'pixel':
 							outputs = tsne.outputs[0].reshape(orig_shape[0], orig_shape[1], orig_shape[3],
@@ -646,20 +649,20 @@ class Reductor():
 if __name__ == '__main__':
 	""" Variables setup """
 
-	algos = ['full','pca','tsne']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
+	algos = ['pca','tsne']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
 	modes = ['pixel', 'feature']  # ['feature', 'pixel','pic_to_coord']  # smth else?
 
 	layers = ['init_path', 'down1', 'down2', 'down3', 'up3', 'up2', 'up1', 'out_path']
 
 	thresholds = [None]
-	img_size = (64, 64)
+	img_size = (32, 32)
 	show_im = False
 	crop_im = False
 	sample_num = 2
 	perp = None
 	save = True
 
-	mask_cuts = ['predict']  # 'true', 'predict', None
+	mask_cuts = [None]  # 'true', 'predict', None
 	n_init = 250
 
 	n_iters = [500]
