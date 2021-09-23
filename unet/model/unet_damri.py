@@ -142,7 +142,7 @@ class UNet2D(nn.Module):
             0: self.init_path,
             1: self.down1,
             2: self.down2,
-            3: self.down2,
+            3: self.down3,
             4: self.up3,
             5: self.up2,
             6: self.up1,

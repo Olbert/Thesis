@@ -12,7 +12,8 @@ from misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
 from utils.dataset import BasicDataset
 from sklearn.decomposition import PCA
-
+import openTSNE
+from openTSNE import affinity, initialization
 scaler = preprocessing.MinMaxScaler()
 
 
@@ -96,21 +97,57 @@ class TSNE(Basic_reduction):  # TODO static?
 		self.perp = perp
 		self.mode = mode
 		self.init = init
-		self.function = sklearn.manifold.TSNE(n_components=n_components, perplexity=perp, init=init, n_iter=n_iter)
+		# self.function = sklearn.manifold.TSNE(n_components=n_components, perplexity=perp, init=init, n_iter=n_iter)
+		self.function = openTSNE.TSNE(
+			perplexity=30,
+		    initialization="pca",
+		    metric="cosine",
+		    n_jobs=8,
+		    random_state=3,
+		)
 
 	def get_manifold(self, output_mid, fit=False):
 		if (self.mode == 'pixel'):
 			# output_mid = output_mid.reshape(output_mid.shape[0], -1).swapaxes(0, 1)
 
-			output_2d = self.function.fit_transform(output_mid).astype(
-				np.float)
+			affinities_multiscale_mixture = openTSNE.affinity.Multiscale(
+				output_mid,
+				perplexities=[50, 1000],
+				metric="cosine",
+				n_jobs=8,
+				random_state=3,
+			)
+			init = openTSNE.initialization.pca(output_mid, random_state=42)
+
+			embedding_multiscale = openTSNE.TSNE(n_jobs=8).fit(
+				affinities=affinities_multiscale_mixture,
+				initialization=init,
+			)
+			output_2d = embedding_multiscale
+
+			# output_2d = self.function.fit_transform(output_mid).astype(
+				# 	np.float)
 
 
 		elif (self.mode == 'feature'):
 			# output_mid = output_mid.reshape(output_mid.shape[0],-1)
 
-			output_2d = self.function.fit_transform(output_mid).astype(
-				np.float)
+			# output_2d = self.function.fit_transform(output_mid).astype(
+			# 			# 	np.float)
+			affinities_multiscale_mixture = openTSNE.affinity.Multiscale(
+				output_mid,
+				perplexities=[2, 20],
+				metric="cosine",
+				n_jobs=8,
+				random_state=3,
+			)
+			init = openTSNE.initialization.pca(output_mid, random_state=42)
+
+			embedding_multiscale = openTSNE.TSNE(n_jobs=8).fit(
+				affinities=affinities_multiscale_mixture,
+				initialization=init,
+			)
+			output_2d = embedding_multiscale
 
 		elif (self.mode == 'pic_to_coord'):
 			output_mid = output_mid.reshape(1, -1)
