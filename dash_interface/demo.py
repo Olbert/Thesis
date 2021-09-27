@@ -16,6 +16,9 @@ import plotly.graph_objs as go
 import scipy.spatial.distance as spatial_distance
 import plotly.express as px
 
+import sys
+import os
+
 # get relative data folder
 PATH = pathlib.Path(__file__).parent
 DATA_PATH = PATH.joinpath("data").resolve()
@@ -60,7 +63,7 @@ def Card(children, **kwargs):
 	return html.Section(children, className="card-style")
 
 
-def NamedDrpdown(name, id, options, placeholder, value):
+def NamedDropdown(name, id, options, placeholder, value):
 	return html.Div(
 		style={"margin": "25px 5px 30px 0px"},
 		children=[
@@ -183,7 +186,7 @@ def create_layout(app):
 						children=[
 							Card(
 								[
-									NamedDrpdown(
+									NamedDropdown(
 										name="Algorithm",
 										id="dropdown-algo",
 										options=[
@@ -207,7 +210,7 @@ def create_layout(app):
 										placeholder="Select an algorithm",
 										value="pca",
 									),
-									NamedDrpdown(
+									NamedDropdown(
 										name="Mode",
 										id="dropdown-mode",
 										options=[
@@ -224,7 +227,7 @@ def create_layout(app):
 										value="pixel",
 									),
 									# TODO: Generate on fly
-									NamedDrpdown(
+									NamedDropdown(
 										name="Layer",
 										id="dropdown-layer",
 										options=[
@@ -272,7 +275,7 @@ def create_layout(app):
 										val=1,
 										marks={i: str(i) for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
 									),
-									NamedDrpdown(
+									NamedDropdown(
 										name="Mask Cut",
 										id="dropdown-mask_cut",
 										options=[
@@ -313,50 +316,6 @@ def create_layout(app):
 										val=30,
 										marks={i: str(i) for i in [3, 10, 30, 50, 100]},
 									),
-									# NamedSlider(
-									#     name="Initial PCA Dimensions",
-									#     short="pca-dimension",
-									#     min=25,
-									#     max=100,
-									#     step=None,
-									#     val=50,
-									#     marks={i: str(i) for i in [25, 50, 100]},
-									# ),
-									# NamedSlider(
-									#     name="Learning Rate",
-									#     short="learning-rate",
-									#     min=10,
-									#     max=200,
-									#     step=None,
-									#     val=100,
-									#     marks={i: str(i) for i in [10, 50, 100, 200]},
-									# ),
-									# html.Div(
-									# 	id="div-wordemb-controls",
-									# 	style={"display": "none"},
-									# 	children=[
-									# 		NamedInlineRadioItems(
-									# 			name="Display Mode",
-									# 			short="wordemb-display-mode",
-									# 			options=[
-									# 				{
-									# 					"label": " Regular",
-									# 					"value": "regular",
-									# 				},
-									# 				{
-									# 					"label": " Top-100 Neighbors",
-									# 					"value": "neighbors",
-									# 				},
-									# 			],
-									# 			val="regular",
-									# 		),
-									# 		dcc.Dropdown(
-									# 			id="dropdown-word-selected",
-									# 			placeholder="Select word to display its neighbors",
-									# 			style={"background-color": "#f2f3f4"},
-									# 		),
-									# 	],
-									# ),
 								]
 							)
 						],
@@ -506,16 +465,24 @@ def demo_callbacks(app):
 	def find_point(reductor, point):
 		point = np.array(point)
 		index = np.unique(np.argwhere(np.array(reductor['output']) == point)[:,0:4], axis=0)
-		full_coord = []
-		# TODO: returl list of all indexes with this value
-		for ind in index:
-			sample_num = ind[1] // (reductor['activ_img_size'][0] * reductor['activ_img_size'][1])
-			coord_num = ind[1] - ((reductor['activ_img_size'][0] * reductor['activ_img_size'][1]) * sample_num)
-
-			x = coord_num // reductor['activ_img_size'][0]
-			y = coord_num - x * reductor['activ_img_size'][0]
-			full_coord.append([ind[0], sample_num, x, y])
 		return index
+
+
+	def image_convert(images):
+		shape = images.shape
+		images_r = images.reshape(-1, shape[2], shape[3], 3)
+
+		# new_im = np.concatenate((
+		# 	np.concatenate(images_r[:2]),
+		# 	np.concatenate(images_r[2:])), axis=1)
+		new_im = np.concatenate(np.concatenate(images,axis=2),axis=0)
+		# new_im = np.concatenate((
+		# 	np.concatenate(images.reshape(-1, shape[2], shape[3], 3)[:2]),
+		# 	np.concatenate(images.reshape(-1, shape[2], shape[3], 3)[2:])), axis=1)
+		return new_im
+
+
+
 
 	# Callback function for the learn-more button
 	@app.callback(
@@ -692,33 +659,73 @@ def demo_callbacks(app):
 							images[ind[0], ind[1]][x0, y] = [0, 255, 255]
 						for y in range(y0, y1):
 							images[ind[0], ind[1]][x1, y] = [0, 255, 255]
-			#
-			# # figs[0].data[0].z[x0,y0]
-			# figs[ind[0]].add_shape(
-			# 	type='rect',
-			# 	x0=x0, x1=x1, y0=y0, y1=y1,
-			# 	xref='x', yref='y',
-			# 	line_color='cyan'
-			# )
+			# new_im = np.array(images).reshape(shape[2] * shape[0], shape[3] * shape[1], 3)
+			# new_im =np.concatenate(np.array(images).reshape(-1, shape[2], shape[3], 3), axis=0)
+			new_im = image_convert(np.array(images))
+			images_b64 = (HTML_IMG_SRC_PARAMETERS + pil_to_b64(Image.fromarray(np.array(new_im, dtype=np.uint8)), enc_format='png'))
+			# for i in range(len(reductor['input'])):
+			# 	for k in range(len(reductor['input'][0])):
+			# 		images_b64.append(HTML_IMG_SRC_PARAMETERS +
+			# 		                  pil_to_b64(Image.fromarray(np.array(images[i, k, :, :], dtype=np.uint8)),
+			# 		                             enc_format='png'))
+			# return html.Div([
+			# 	html.Div([
+			# 		html.P(str(reductor['names'][i])
+			# 		for i in range(len(reductor['names'])))
+			# 	]),
+			# 	html.Div(id='dynamic-output')
+			# ])
+			# return html.Div([
+			# 	html.Div([
+			# 		html.P('Text_' + str(i)),
+			# 		html.Div([
+			# 			html.Img(
+			# 				src=images_b64,
+			# 				id='images_b64'
+			# 			)
+			# 		]),
+			# 	]),
+			# 	html.Div(id='dynamic-output')
+			# ])
+			return html.Div(
+				[html.Div(
+					[html.Div(
+						[html.P(
+							str(reductor['names'][i]))
+							for i in range(len(reductor['names']))
+						]),
+						html.Img(
+							src=images_b64,
+							id='images_b64'
+						)
+					]),
+					html.Div(id='dynamic-output')
+				])
 
-			# n += 1
-			# coord.append(true_coord)
-			images_b64 = []
-			for i in range(len(reductor['input'])):
-				for k in range(len(reductor['input'][0])):
-					images_b64.append(HTML_IMG_SRC_PARAMETERS +
-					                  pil_to_b64(Image.fromarray(np.array(images[i, k, :, :], dtype=np.uint8)),
-					                             enc_format='png'))
-
-			return html.Div([
-				html.Div([
-					html.Img(
-						src=images_b64[i],
-						id='image-{}'.format(i))
-					for i in range(len(images_b64))
-				]),
-				html.Div(id='dynamic-output')
-			])
+	# def create_callback(retfunc):
+	# 	"""creates a callback function"""
+	#
+	# 	def callback(*input_values):
+	# 		if input_values is not None and input_values != 'None':
+	# 			try:
+	# 				retval = retfunc(*input_values)
+	# 			except Exception as e:
+	# 				exc_type, exc_obj, exc_tb = sys.exc_info()
+	# 				fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+	# 				print('Callback Exception:', e, exc_type, fname, exc_tb.tb_lineno)
+	# 				print('parameters:', *input_values)
+	# 			return retval
+	# 		else:
+	# 			return []
+	#
+	# 	return callback
+	#
+	# dyn_func = create_callback(save_zoom)
+	#
+	# [app.callback([Output('plot' + str(i), 'figure')],
+	#               [Input('plot' + str(i), 'relayoutData')],
+	#               [State('plot' + str(i), 'figure'),
+	#                State('tabs', 'value')])(dyn_func) for i in range(2)]
 
 	@app.callback(
 		Output("div-plot-click-message", "children"),
