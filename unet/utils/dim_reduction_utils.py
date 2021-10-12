@@ -15,7 +15,15 @@ from sklearn.decomposition import PCA
 import openTSNE
 from openTSNE import affinity, initialization
 scaler = preprocessing.MinMaxScaler()
+import pycuda.autoinit
+import pycuda.gpuarray as gpuarray
+import numpy as np
+import skcuda.linalg as linalg
+from skcuda.linalg import PCA as cuPCA
 
+
+from matplotlib import pyplot as plt
+from sklearn import datasets
 
 class Basic_reduction():
 	def __init__(self, mode):
@@ -70,6 +78,38 @@ class PCA(Basic_reduction):
 		super().__init__(mode)
 		self.fit = fit
 		self.function = sklearn.decomposition.PCA(n_components=n_components)
+
+class PCA_cuda(Basic_reduction):
+
+	def __init__(self, mode, n_components=2, fit=True):
+		super().__init__(mode)
+		self.fit = fit
+		self.function = cuPCA(n_components=n_components)
+
+	def transform(self, images):
+
+		X = np.asfortranarray(images)
+		i=0
+		precisions = ['double']
+
+		X_gpu = gpuarray.to_gpu(X)  # copy data to gpu
+
+		T_gpu = self.function.fit_transform(X_gpu)  # calculate the principal components
+
+		# show that the resulting eigenvectors are orthogonal
+		# Note that GPUArray.copy() is necessary to create a contiguous array
+		# from the array slice, otherwise there will be undefined behavior
+		dot_product = linalg.dot(T_gpu[:, 0].copy(), T_gpu[:, 1].copy())
+		T = T_gpu.get()
+
+		print("The dot product of the first two " + str(precisions[i]) +
+		      " precision eigenvectors is: " + str(dot_product))
+
+		# now get the variance of the eigenvectors and create the ratio explained from the total
+		std_vec = np.std(T, axis=0)
+		print("We explained " + str(100 * np.sum(std_vec[:2]) / np.sum(std_vec)) +
+		      "% of the variance with 2 principal components in " +
+		      str(precisions[i]) + " precision\n\n")
 
 
 

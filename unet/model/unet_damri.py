@@ -111,6 +111,7 @@ class UNet2D(nn.Module):
 
         return x_out
 
+
     def default(self):
         # loss
         criterion = torch.nn.BCEWithLogitsLoss()

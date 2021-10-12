@@ -12,7 +12,7 @@ from model import UNet2D
 from misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
 from utils.dataset import BasicDataset
-from utils.dim_reduction_utils import TSNE, PCA, LLE, Isomap
+from utils.dim_reduction_utils import TSNE, PCA, LLE, Isomap, PCA_cuda
 from skimage.transform import resize
 
 from torch.utils.tensorboard import SummaryWriter
@@ -56,7 +56,8 @@ def get_mid_output(net, img, layer='init_path', device='cuda'):
 	img = img.to(device=device, dtype=torch.float32)
 
 	with torch.no_grad():
-		output = torch.sigmoid(net(img)).cpu().detach().numpy()[0, 0]
+		raw_out = net(img)
+		output = torch.sigmoid(raw_out).cpu().detach().numpy()[0, 0]
 		output_mid = activation[layer].cpu().detach().numpy()[0]
 
 	return output_mid, output
@@ -155,7 +156,7 @@ def nearest_neighbor_scaling(source, size):
 	return target
 
 
-def get_data(sample_num):
+def get_data(volume_num, sample_num):
 	# image_sources = np.array(['input_p_1.jpg', 'input_s.jpg', 'input_p_2.jpg'])
 	# image_legends = np.array(['Source domain', 'Target domain', 'Source domain2'])
 
@@ -199,9 +200,9 @@ def get_map(mask, pred, coeff=0.5):  # TODO: check for errors
 				else:
 					eval_map[i, k] = 3
 
-	# plt.imshow(mask, cmap='gray', vmin=0.5, vmax=1)
+	# plt.imshow(mask, cmap='gray', vmin=0, vmax=1)
 	# plt.show()
-	# plt.imshow(pred, cmap='gray', vmin=0.5, vmax=1)
+	# plt.imshow(pred, cmap='gray', vmin=0, vmax=1)
 	# plt.show()
 	# plt.imshow(eval_map, vmin=2, vmax=3)
 	# plt.show()
@@ -379,8 +380,8 @@ class Reductor():
 		"""Plot mode structure """  # number of images to stack on each other (Doesn't work)
 		plot_mode = 1
 		desired_points = 200000  # Works not everywhere
-
-		test_loaders = get_data(sample_num)
+		volume_num = 1
+		test_loaders = get_data(volume_num, sample_num)
 
 		self.get_database(self.net, test_loaders, layer, threshold, img_size, mask_cut, upsampling, plot_mode)
 
@@ -474,7 +475,7 @@ class Reductor():
 					axis = fig.add_axes([0, 0, 1, 1])
 					all_outputs = []
 					fit = True
-					pca = PCA(mode, fit=fit,n_components=min(2,self.image_mids[0].shape[1]))
+					pca = PCA(mode, fit=fit, n_components=min(2, self.image_mids[0].shape[1]))
 					for dom in range(0, self.image_mids.shape[0]):
 						shape = self.image_mids[dom].shape
 						# TODO: Check how it is better to feed samples, together or separately
@@ -498,6 +499,7 @@ class Reductor():
 								threshold) + "_cut_" + str(mask_cut) + str(img_size) + ".jpg")
 					plt.close(fig)
 					self.output = np.array(all_outputs)
+
 
 				if algo == 'isomap':
 					isomap = Isomap(mode)
@@ -637,6 +639,37 @@ class Reductor():
 				#
 				# 	plt.close(fig)
 
+				if algo == 'pca_cuda':
+					fig = plt.figure()
+					axis = fig.add_axes([0, 0, 1, 1])
+					all_outputs = []
+					fit = True
+					pca = PCA_cuda(mode, fit=fit, n_components=min(2, self.image_mids[0].shape[1]))
+					for dom in range(0, self.image_mids.shape[0]):
+						shape = self.image_mids[dom].shape
+						# TODO: Check how it is better to feed samples, together or separately
+						pca.transform(self.image_mids[dom].swapaxes(1, -1).reshape(-1, shape[1]))
+						pca.fit = False
+						outputs = np.array(pca.outputs[dom]).reshape(-1, 2)
+						outputs_subset = np.random.choice(range(outputs.shape[0]),
+						                                  min(desired_points, outputs.shape[0]),
+						                                  replace=False)
+						axis.scatter(x=outputs[outputs_subset][:, 0],
+						             y=outputs[outputs_subset][:, 1], label=self.names[dom], s=20, alpha=0.7)
+						# plt.scatter(x=outputs[outputs_subset][:, 0],
+						#              y=outputs[outputs_subset][:, 1], label=self.names[dom], s=20, alpha=0.7)
+						# plt.show()
+						all_outputs.append(outputs[outputs_subset].reshape(shape[0], shape[2], shape[3], 2))
+					axis.legend()
+
+					if save:
+						fig.savefig(
+							"data/graphs/pca/" + str(layer_name) + "_mode_" + str(pca.mode) + "_thresh_" + str(
+								threshold) + "_cut_" + str(mask_cut) + str(img_size) + ".jpg")
+					plt.close(fig)
+					self.output = np.array(all_outputs)
+
+
 	def get_data(self):
 		keys = ['input', 'output', 'names', 'eval_maps', 'image_mids']
 		self.__dict__.pop('net', None)
@@ -656,7 +689,7 @@ class Reductor():
 if __name__ == '__main__':
 	""" Variables setup """
 
-	algos = ['tsne']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
+	algos = ['pca_cuda']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
 	modes = ['pixel', 'feature']  # ['feature', 'pixel','pic_to_coord']  # smth else?
 
 	layers = ['init_path', 'down1', 'down2',  'up1', 'out_path']

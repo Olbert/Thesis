@@ -1,31 +1,23 @@
 import base64
-import io
 import pathlib
-import matplotlib.pyplot as plt
 import numpy as np
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc
+from dash import html
 from PIL import Image
 from io import BytesIO
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 
-import pandas as pd
 import plotly.graph_objs as go
-import scipy.spatial.distance as spatial_distance
-import plotly.express as px
 
-import sys
-import os
+import plotly.express as px
 
 # get relative data folder
 PATH = pathlib.Path(__file__).parent
 DATA_PATH = PATH.joinpath("data").resolve()
 import unet.dim_reduction
 
-import datetime
-import json
 import time
 
 # Variables
@@ -45,17 +37,44 @@ styles = {
 }
 
 
-def numpy_to_b64(array, scalar=True):
+def pil_to_b64(im, enc_format='png', verbose=False, **kwargs):
+	"""
+		Converts a PIL Image into base64 string for HTML displaying
+		:param verbose:
+		:param im: PIL Image object
+		:param enc_format: The image format for displaying. If saved the image will have that extension.
+		:return: base64 encoding
+		"""
+	t_start = time.time()
+
+	buff = BytesIO()
+	im.save(buff, format=enc_format, **kwargs)
+	encoded = base64.b64encode(buff.getvalue()).decode("utf-8")
+
+	t_end = time.time()
+	if verbose:
+		print(f"PIL converted to b64 in {t_end - t_start:.3f} sec")
+
+	return encoded
+
+
+def numpy_to_b64(np_array, enc_format='png', scalar=True, **kwargs):
+	"""
+		Converts a numpy image into base 64 string for HTML displaying
+		:param np_array:
+		:param enc_format: The image format for displaying. If saved the image will have that extension.
+		:param scalar:
+		:return:
+		"""
 	# Convert from 0-1 to 0-255
 	if scalar:
-		array = np.uint8(255 * array)
+		np_array = np.uint8(255 * np_array)
+	else:
+		np_array = np.uint8(np_array)
 
-	im_pil = Image.fromarray(array)
-	buff = BytesIO()
-	im_pil.save(buff, format="png")
-	im_b64 = base64.b64encode(buff.getvalue()).decode("utf-8")
+	im_pil = Image.fromarray(np_array)
 
-	return im_b64
+	return pil_to_b64(im_pil, enc_format, **kwargs)
 
 
 # Methods for creating components in the layout code
@@ -92,7 +111,7 @@ def NamedSlider(name, short, min, max, step, val, marks=None):
 		children=[
 			f"{name}:",
 			html.Div(
-				style={"margin-left": "5px"},
+				style={"margin-left": "5px", 'display': 'block'},
 				children=[
 					dcc.Slider(
 						id=f"slider-{short}",
@@ -327,31 +346,9 @@ def create_layout(app):
 						],
 					),
 					html.Div(
-						className="three columns",
-						id="euclidean-distance",
+						className="six columns",
 						children=[
-							Card(
-								style={"padding": "5px"},
-								children=[
-									html.Div(
-										id="div-plot-click-message",
-										style={
-											"text-align": "center",
-											"margin-bottom": "7px",
-											"font-weight": "bold",
-										},
-									),
-									html.Div(id="div-plot-click-image1"),
-									html.Div(id="div-plot-click-image2"),
-
-									html.Div(id="div-plot-click-wordemb"),
-									html.Pre(id='selected-data', style=styles['pre']),
-									html.Div([
-										html.Div(id='container')
-									])
-
-								],
-							)
+							dcc.Graph(id="div-plot-click-image", style={"height": "98vh"}),
 						],
 					),
 
@@ -362,67 +359,6 @@ def create_layout(app):
 
 
 def demo_callbacks(app):
-	def generate_thumbnail(image):
-		return html.Div([
-			html.A([
-				html.Img(
-					style={
-						'height': '40%',
-						'width': '40%',
-						'float': 'left',
-						'position': 'relative',
-						'padding-top': 0,
-						'padding-right': 0
-					},
-					src=HTML_IMG_SRC_PARAMETERS + pil_to_b64(image, enc_format='png'),
-					width='100%'
-				)
-			], href='https://www.google.com'),
-		])
-
-	def image_show(images):
-		images_div = []
-		for i in images:
-			images_div.append(generate_thumbnail(i))
-		app.layout = html.Div(images_div)
-
-	def pil_to_b64(im, enc_format='png', verbose=False, **kwargs):
-		"""
-		Converts a PIL Image into base64 string for HTML displaying
-		:param im: PIL Image object
-		:param enc_format: The image format for displaying. If saved the image will have that extension.
-		:return: base64 encoding
-		"""
-		t_start = time.time()
-
-		buff = BytesIO()
-		im.save(buff, format=enc_format, **kwargs)
-		encoded = base64.b64encode(buff.getvalue()).decode("utf-8")
-
-		t_end = time.time()
-		if verbose:
-			print(f"PIL converted to b64 in {t_end - t_start:.3f} sec")
-
-		return encoded
-
-	def numpy_to_b64(np_array, enc_format='png', scalar=True, **kwargs):
-		"""
-		Converts a numpy image into base 64 string for HTML displaying
-		:param np_array:
-		:param enc_format: The image format for displaying. If saved the image will have that extension.
-		:param scalar:
-		:return:
-		"""
-		# Convert from 0-1 to 0-255
-		if scalar:
-			np_array = np.uint8(255 * np_array)
-		else:
-			np_array = np.uint8(np_array)
-
-		im_pil = Image.fromarray(np_array)
-
-		return pil_to_b64(im_pil, enc_format, **kwargs)
-
 	def plot2d(names, output, eval_map=None):
 		axes = dict(title="", showgrid=True, zeroline=False, showticklabels=False)
 
@@ -434,17 +370,17 @@ def demo_callbacks(app):
 		if eval_map is not None:
 			img_types = ['TP', 'TN', 'FP', 'FN']
 			for i in range(0, output.shape[0]):
-					for type in range(0, len(img_types)):
-						scatter = go.Scatter(
-							name=names[i]+"_"+img_types[type],
-							x=output[i, eval_map[i] == type][:, 0],
-							y=output[i, eval_map[i] == type][:, 1],
-							text="sometext",  # [idx for _ in range(val["x"].shape[0])],
-							textposition="top center",
-							mode="markers",
-							marker=dict(size=10, symbol="circle"),
-						)
-						data.append(scatter)
+				for type in range(0, len(img_types)):
+					scatter = go.Scatter(
+						name=names[i] + "_" + img_types[type],
+						x=output[i, eval_map[i] == type][:, 0],
+						y=output[i, eval_map[i] == type][:, 1],
+						text="some text",  # [idx for _ in range(val["x"].shape[0])],
+						textposition="top center",
+						mode="markers",
+						marker=dict(size=10, symbol="circle"),
+					)
+					data.append(scatter)
 		else:
 			for i in range(0, names.shape[0]):
 				scatter = go.Scatter(
@@ -464,25 +400,8 @@ def demo_callbacks(app):
 
 	def find_point(reductor, point):
 		point = np.array(point)
-		index = np.unique(np.argwhere(np.array(reductor['output']) == point)[:,0:4], axis=0)
+		index = np.unique(np.argwhere(np.array(reductor['output']) == point)[:, 0:4], axis=0)
 		return index
-
-
-	def image_convert(images):
-		shape = images.shape
-		images_r = images.reshape(-1, shape[2], shape[3], 3)
-
-		# new_im = np.concatenate((
-		# 	np.concatenate(images_r[:2]),
-		# 	np.concatenate(images_r[2:])), axis=1)
-		new_im = np.concatenate(np.concatenate(images,axis=2),axis=0)
-		# new_im = np.concatenate((
-		# 	np.concatenate(images.reshape(-1, shape[2], shape[3], 3)[:2]),
-		# 	np.concatenate(images.reshape(-1, shape[2], shape[3], 3)[2:])), axis=1)
-		return new_im
-
-
-
 
 	# Callback function for the learn-more button
 	@app.callback(
@@ -522,21 +441,14 @@ def demo_callbacks(app):
 	def show_wordemb_controls(algo):
 		# TODO: hide more
 		if algo == 'tsne':
-			return None
+			return {"display": "block"}
 		else:
 			return {"display": "none"}
 
 	@app.callback(
-		Output("dropdown-word-selected", "disabled"),
-		[Input("radio-wordemb-display-mode", "value")],
-	)
-	def disable_word_selection(mode):
-		return not mode == "neighbors"
-
-	@app.callback(
 		[
 			Output("graph-3d-plot-tsne", "figure"),
-			Output('memory', 'reductor'),
+			Output('memory', 'data'),
 		],
 		[
 			Input("dropdown-algo", "value"),
@@ -548,7 +460,7 @@ def demo_callbacks(app):
 			Input("slider-samples", "value"),
 			Input("dropdown-mask_cut", "value"),
 		],
-		State('memory', 'reductor')
+		State('memory', 'data')
 	)
 	def display_3d_scatter_plot(
 			algo,
@@ -569,63 +481,45 @@ def demo_callbacks(app):
 			# plt.scatter(reductor.output[0][:, 0], reductor.output[0][:, 1])
 			# plt.show()
 			figure = plot2d(reductor.names, reductor.output, reductor.eval_maps)
-			figure.update_layout(legend=dict(
-				yanchor="top",
-				y=0.99,
-				xanchor="right",
-				x=0.01
-			))
+			figure.update_layout(
+				legend=dict(
+					yanchor="top",
+					y=0.96,
+					xanchor="right",
+					x=0.99
+				),
+				paper_bgcolor='rgba(0,0,0,0)',
+				modebar_bgcolor= 'white'
+				# plot_bgcolor='rgba(0,0,0,0)'
+			)
 			return figure, reductor.get_data()
 
+
 	@app.callback(
-		Output("div-plot-click-image1", "children"),
+		Output("div-plot-click-image", "figure"),
+
 		[
 			Input("graph-3d-plot-tsne", "clickData"),
-			Input("dropdown-algo", "value"),
+			Input("graph-3d-plot-tsne", "selectedData"),
 			Input("dropdown-mode", "value"),
-			# Input("slider-iterations", "value"),
-			Input("slider-perplexity", "value"),
 		],
-		State('memory', 'reductor')
+		State('memory', 'data'),
+		prevent_initial_call=True
 	)
-	def display_click_image(clickData, algo, mode, perplexity, reductor):
-		# Only for pixel mode
-		if clickData and mode == 'pixel':
-			point = list([clickData['points'][0]['x'], clickData['points'][0]['y']])
+	def displaySelectedData(clickData, selectedData, mode, reductor):
 
-			k, sample_num, x, y = find_point(reductor, point)
+		ctx = dash.callback_context
+		if ctx.triggered[0]['prop_id'].split('.')[0] != 'dropdown-mode' and mode == 'pixel':
+			points_list = []
+			if ctx.triggered[0]['prop_id'].split('.')[1] == 'clickData':
+				points_list = clickData['points']
+			elif ctx.triggered[0]['prop_id'].split('.')[1] == 'selectedData':
+				points_list = selectedData['points']
 
-			ratio = map(lambda x, y: x / y, reductor['input_img_size'], reductor['activ_img_size']).__next__()
-			true_coord = x * ratio, y * ratio
-			x0 = max(0, true_coord[0] - ratio / 2)
-			y0 = max(0, true_coord[1] - ratio / 2)
-			x1 = min(reductor['input_img_size'][0], true_coord[0] + ratio / 2)
-			y1 = min(reductor['input_img_size'][1], true_coord[1] + ratio / 2)
-
-			fig = px.imshow(reductor['input'][k][sample_num][0][0])
-			fig.add_shape(
-				type='rect',
-				x0=x0, x1=x1, y0=y0, y1=y1,
-				xref='x', yref='y',
-				line_color='cyan'
-			)
-
-			return dcc.Graph(figure=fig)
-
-	@app.callback(
-		Output("container", "children"),
-		[Input("graph-3d-plot-tsne", "selectedData"), ],
-		State('memory', 'reductor')
-	)
-	def displaySelectedData(selectedData, reductor):
-		if selectedData:
 			images = np.zeros((len(reductor['input']), len(reductor['input'][0]), reductor['input_img_size'][0],
 			                   reductor['input_img_size'][1], 3))
-			# ratio = map(lambda x, y: x / y, reductor['input_img_size'], reductor['activ_img_size']).__next__()
-			ratio = np.array(reductor['input_img_size'])[0]/np.array(reductor['output'])[0,0,:,:,0].shape[0]
-			figs = []
-			coord = []
-			n = 0
+			ratio = np.array(reductor['input_img_size'])[0] / np.array(reductor['output'])[0, 0, :, :, 0].shape[0]
+
 			for i in range(len(reductor['input'])):
 				for k in range(len(reductor['input'][0])):
 					image = np.array(
@@ -634,9 +528,9 @@ def demo_callbacks(app):
 					images[i, k] = image
 
 			all_coords = np.zeros((len(reductor['input']), len(reductor['input'][0]), reductor['input_img_size'][0],
-			                       reductor['input_img_size'][1]), dtype=np.bool)
+			                       reductor['input_img_size'][1]), dtype=np.bool_)
 
-			for data in selectedData['points']:
+			for data in points_list:
 
 				point = list([data['x'], data['y']])
 				index = find_point(reductor, point)
@@ -657,126 +551,21 @@ def demo_callbacks(app):
 							images[ind[0], ind[1]][x, y1] = [0, 255, 255]
 						for y in range(y0, y1):
 							images[ind[0], ind[1]][x0, y] = [0, 255, 255]
-						for y in range(y0, y1):
+						for y in range(y0, y1+1):
 							images[ind[0], ind[1]][x1, y] = [0, 255, 255]
-			# new_im = np.array(images).reshape(shape[2] * shape[0], shape[3] * shape[1], 3)
-			# new_im =np.concatenate(np.array(images).reshape(-1, shape[2], shape[3], 3), axis=0)
-			new_im = image_convert(np.array(images))
-			images_b64 = (HTML_IMG_SRC_PARAMETERS + pil_to_b64(Image.fromarray(np.array(new_im, dtype=np.uint8)), enc_format='png'))
-			# for i in range(len(reductor['input'])):
-			# 	for k in range(len(reductor['input'][0])):
-			# 		images_b64.append(HTML_IMG_SRC_PARAMETERS +
-			# 		                  pil_to_b64(Image.fromarray(np.array(images[i, k, :, :], dtype=np.uint8)),
-			# 		                             enc_format='png'))
-			# return html.Div([
-			# 	html.Div([
-			# 		html.P(str(reductor['names'][i])
-			# 		for i in range(len(reductor['names'])))
-			# 	]),
-			# 	html.Div(id='dynamic-output')
-			# ])
-			# return html.Div([
-			# 	html.Div([
-			# 		html.P('Text_' + str(i)),
-			# 		html.Div([
-			# 			html.Img(
-			# 				src=images_b64,
-			# 				id='images_b64'
-			# 			)
-			# 		]),
-			# 	]),
-			# 	html.Div(id='dynamic-output')
-			# ])
-			return html.Div(
-				[html.Div(
-					[html.Div(
-						[html.P(
-							str(reductor['names'][i]))
-							for i in range(len(reductor['names']))
-						]),
-						html.Img(
-							src=images_b64,
-							id='images_b64'
-						)
-					]),
-					html.Div(id='dynamic-output')
-				])
 
-	# def create_callback(retfunc):
-	# 	"""creates a callback function"""
-	#
-	# 	def callback(*input_values):
-	# 		if input_values is not None and input_values != 'None':
-	# 			try:
-	# 				retval = retfunc(*input_values)
-	# 			except Exception as e:
-	# 				exc_type, exc_obj, exc_tb = sys.exc_info()
-	# 				fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-	# 				print('Callback Exception:', e, exc_type, fname, exc_tb.tb_lineno)
-	# 				print('parameters:', *input_values)
-	# 			return retval
-	# 		else:
-	# 			return []
-	#
-	# 	return callback
-	#
-	# dyn_func = create_callback(save_zoom)
-	#
-	# [app.callback([Output('plot' + str(i), 'figure')],
-	#               [Input('plot' + str(i), 'relayoutData')],
-	#               [State('plot' + str(i), 'figure'),
-	#                State('tabs', 'value')])(dyn_func) for i in range(2)]
+			new_im = np.concatenate(np.concatenate(np.array(images), axis=2), axis=0).astype(np.uint8)
+			fig = px.imshow(new_im)
 
-	@app.callback(
-		Output("div-plot-click-message", "children"),
-		[Input("graph-3d-plot-tsne", "clickData"), Input("dropdown-algo", "value")],
-	)
-	def display_click_message(clickData, dataset):
-		# # Displays message shown when a point in the graph is clicked, depending whether it's an image or word
-		# if dataset in [IMAGE_DATASETS]:
-		#     if clickData:
-		#         return "Image Selected"
-		#     else:
-		#         return "Click a data point on the scatter plot to display its corresponding image."
-		#
-		# elif dataset in WORD_EMBEDDINGS:
-		#     if clickData:
-		#         return None
-		#     else:
-		#         return "Click a word on the plot to see its top 5 neighbors."
-		pass
+			fig.update_layout(width=600,height=600, paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)')
+			return fig
 
-# # add a click to the appropriate store.
-# @app.callback(Output('memory', 'data'),
-#               Input('?','>'),
-#               State('memory', 'data'))
-#
-# def on_click(n_clicks, data):
-# 	if n_clicks is None:
-# 		# prevent the None callbacks is important with the store component.
-# 	    # you don't want to update the store for nothing.
-#         raise PreventUpdate
-#
-# 	# Give a default data dict with 0 clicks if there's no data.
-#     data = data or {'clicks': 0}
-#
-# 	data['clicks'] = data['clicks'] + 1
-# 	return data
-#
-# # output the stored clicks in the table cell.
-# @app.callback(Output('{}-clicks'.format(store), 'children'),
-#               # Since we use the data prop in an output,
-#               # we cannot get the initial data on load with the data prop.
-#               # To counter this, you can use the modified_timestamp
-#               # as Input and the data as State.
-#               # This limitation is due to the initial None callbacks
-#               # https://github.com/plotly/dash-renderer/pull/81
-#               Input(store, 'modified_timestamp'),
-#               State(store, 'data'))
-# def on_data(ts, data):
-#     if ts is None:
-#         raise PreventUpdate
-#
-#     data = data or {}
-#
-#     return data.get('clicks', 0)
+
+
+
+
+
+
+
+
