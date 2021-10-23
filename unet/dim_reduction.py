@@ -159,20 +159,26 @@ def nearest_neighbor_scaling(source, size):
 def get_data(volume_num, sample_num):
 	# image_sources = np.array(['input_p_1.jpg', 'input_s.jpg', 'input_p_2.jpg'])
 	# image_legends = np.array(['Source domain', 'Target domain', 'Source domain2'])
-
+	SIZE = (128, 128)
+	SLICES = 40
 	""" Images """
 	folders = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Test2\\'
 
 	foldernames = np.array(walk(folders).__next__()[1])
 
-	test_loaders = []
-	for folder in foldernames:
-		# TODO: Check image  size (Can we work with reduced from here(No))
-		dataset = BasicDataset(os.path.join(folders, folder, 'images/'), os.path.join(folders, folder, 'masks/'), 40,
-		                       (128, 128), '_ss')
-		subset = np.random.choice(range(len(dataset)), sample_num, replace=False)
-		dataset = torch.utils.data.Subset(dataset, subset)
-		test_loaders.append((DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4, pin_memory=True), folder))
+	test_loaders = np.empty((foldernames.shape[0]),dtype=DataLoader)
+	for i in range(0, foldernames.shape[0]):
+		# TODO: Check image  size. Make constant
+		dataset = BasicDataset(os.path.join(folders, foldernames[i], 'images/'),
+		                       os.path.join(folders, foldernames[i], 'masks/'), SLICES,
+		                       SIZE, '_ss')
+		volumes = np.random.choice(range(len(dataset.ids)), volume_num, replace=False)
+		subset = []
+		for k in range(0, volumes.shape[0]):
+			subset.append(np.random.choice(range(SLICES * volumes[k], SLICES * (volumes[k]+1)), sample_num, replace=False))
+
+		dataset_sub = torch.utils.data.Subset(dataset, np.array(subset).flatten())
+		test_loaders[i] = (DataLoader(dataset_sub, batch_size=1, shuffle=True, num_workers=4, pin_memory=True), foldernames[i])
 	test_loaders = np.array(test_loaders)
 
 	return test_loaders
@@ -358,7 +364,7 @@ class Reductor():
 		self.input = np.array(self.input)
 		self.names = np.array(self.names)
 
-	def reduction(self, algos, modes, layer, threshold, img_size, sample_num, mask_cut, perp=None, n_iter=500,
+	def reduction(self, algos, modes, layer, threshold, img_size, volume_num, sample_num, mask_cut, perp=None, n_iter=500,
 	              save=False):
 
 		upsampling = False
@@ -380,7 +386,6 @@ class Reductor():
 		"""Plot mode structure """  # number of images to stack on each other (Doesn't work)
 		plot_mode = 1
 		desired_points = 200000  # Works not everywhere
-		volume_num = 1
 		test_loaders = get_data(volume_num, sample_num)
 
 		self.get_database(self.net, test_loaders, layer, threshold, img_size, mask_cut, upsampling, plot_mode)
@@ -420,7 +425,8 @@ class Reductor():
 								# 	tsne.transform(image_mids[l, 0].reshape(shape[1], shape[2], shape[3]), save=False)
 								tsne.transform(self.image_mids.swapaxes(2, -1).reshape(-1, orig_shape[2]))
 							else:
-								tsne.transform(self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1))
+								tsne.transform(
+									self.image_mids.swapaxes(2, 0).reshape(orig_shape[0] * orig_shape[2], -1))
 
 							if mode == 'pixel':
 								outputs = tsne.outputs[0].reshape(orig_shape[0], orig_shape[1], orig_shape[3],
@@ -438,9 +444,9 @@ class Reductor():
 											             alpha=0.7)
 
 									all_outputs.append(outputs[dom])
-								# all_outputs.append(np.concatenate([outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2]]))
-								# all_outputs.append(np.concatenate([ outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2],
-								#                                     outputs[dom, self.eval_maps[dom] == 1], outputs[dom, self.eval_maps[dom] == 3]]))
+							# all_outputs.append(np.concatenate([outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2]]))
+							# all_outputs.append(np.concatenate([ outputs[dom, self.eval_maps[dom] == 0], outputs[dom, self.eval_maps[dom] == 2],
+							#                                     outputs[dom, self.eval_maps[dom] == 1], outputs[dom, self.eval_maps[dom] == 3]]))
 
 							else:
 								# TODO: subset length is wrong
@@ -458,11 +464,13 @@ class Reductor():
 							# plt.show()
 							axis.legend()
 							if save:
-								np.save("data/graphs/tsne/" + str(layer_name) + "_mode_" + str(tsne.mode) + "_thresh_" + str(
-										threshold) + "_cut_" + str(mask_cut) + "_perp_" + str(
-										tsne.perp) + str(img_size) + ".csv",np.array(all_outputs))
+								np.save("data/graphs/tsne/" + str(layer_name) + "_mode_" + str(
+									tsne.mode) + "_thresh_" + str(
+									threshold) + "_cut_" + str(mask_cut) + "_perp_" + str(
+									tsne.perp) + str(img_size) + ".csv", np.array(all_outputs))
 								fig.savefig(
-									"data/graphs/tsne/" + str(layer_name) + "_mode_" + str(tsne.mode) + "_thresh_" + str(
+									"data/graphs/tsne/" + str(layer_name) + "_mode_" + str(
+										tsne.mode) + "_thresh_" + str(
 										threshold) + "_cut_" + str(mask_cut) + "_perp_" + str(
 										tsne.perp) + str(img_size) + ".jpg")
 							plt.close(fig)
@@ -499,7 +507,6 @@ class Reductor():
 								threshold) + "_cut_" + str(mask_cut) + str(img_size) + ".jpg")
 					plt.close(fig)
 					self.output = np.array(all_outputs)
-
 
 				if algo == 'isomap':
 					isomap = Isomap(mode)
@@ -669,7 +676,6 @@ class Reductor():
 					plt.close(fig)
 					self.output = np.array(all_outputs)
 
-
 	def get_data(self):
 		keys = ['input', 'output', 'names', 'eval_maps', 'image_mids']
 		self.__dict__.pop('net', None)
@@ -677,10 +683,10 @@ class Reductor():
 		return self.__dict__
 
 	@staticmethod
-	def auto(algos, modes, layer_name, threshold, img_size, sample_num, mask_cut,
+	def auto(algos, modes, layer_name, threshold, img_size, volume_num, sample_num, mask_cut,
 	         perp, n_iter, save):
 		reductor = Reductor()
-		reductor.reduction(algos, modes, layer_name, threshold, img_size, sample_num, mask_cut,
+		reductor.reduction(algos, modes, layer_name, threshold, img_size, volume_num, sample_num, mask_cut,
 		                   perp, n_iter, save)
 
 		return reductor
@@ -692,13 +698,14 @@ if __name__ == '__main__':
 	algos = ['pca_cuda']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
 	modes = ['pixel', 'feature']  # ['feature', 'pixel','pic_to_coord']  # smth else?
 
-	layers = ['init_path', 'down1', 'down2',  'up1', 'out_path']
+	layers = ['init_path', 'down1', 'down2', 'up1', 'out_path']
 
 	thresholds = [None]
 	img_size = (32, 32)
-	img_sizes = [(8,8),(16,16),(32, 32), (64, 64), (128,128)]
+	img_sizes = [(8, 8), (16, 16), (32, 32), (64, 64), (128, 128)]
 	show_im = False
 	crop_im = False
+	volume_num = 2
 	sample_num = 2
 	perp = 1
 	save = True
@@ -713,5 +720,5 @@ if __name__ == '__main__':
 			for mask_cut in mask_cuts:
 				for img_size in img_sizes:
 					for layer_name in layers:
-						Reductor.auto(algos, modes, layer_name, threshold, img_size, sample_num, mask_cut,
+						Reductor.auto(algos, modes, layer_name, threshold, img_size, volume_num, sample_num, mask_cut,
 						              perp, n_iter, save)

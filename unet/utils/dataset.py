@@ -52,7 +52,7 @@ class BasicDataset(Dataset):
         assert len(img_file) == 1, \
             f'Either no image or multiple images found for the ID {idx}: {img_file}'
 
-        # TODO: preprocessing before slice choosing
+        # TODO: preprocessing before slice choosing?
 
         mask = nib.load(mask_file[0]).get_fdata()
         img = nib.load(img_file[0]).get_fdata()
