@@ -1,20 +1,7 @@
-import base64
 import pathlib
-import numpy as np
-import dash
 from dash import dcc
 from dash import html
-from PIL import Image
-from io import BytesIO
-from dash.dependencies import Input, Output, State
-from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
-
-import dash_interface.layout
-import dash_interface.layout_utils
-import plotly.graph_objs as go
-
-import plotly.express as px
 
 # get relative data folder
 PATH = pathlib.Path(__file__).parent
@@ -161,60 +148,7 @@ tab_selected_style = {
 }
 
 
-def create_layout(app):
-	# Actual layout of the app
-	return html.Div(
-		className="row",
-		style={"max-width": "100%", "font-size": "1.5rem", "padding": "0px 0px"},
-		children=[
-			# Header
-			html.Div(
-				className="row header",
-				id="app-header",
-				style={"background-color": "#f9f9f9"},
-				children=[
-					html.Div(
-						[
-							html.Img(
-								src=app.get_asset_url("bonn-logo.png"),
-								className="logo",
-								id="bonn-image",
-							)
-						],
-						className="three columns header_img",
-					),
-					html.Div(
-						[
-							html.H3(
-								"Visualizing the effects of domain shift on CNN based image segmentation",
-								className="header_title",
-								id="app-title",
-							)
-						],
-						className="nine columns header_title_container",
-					),
-				],
-			),
-
-
-			# Body
-
-			dcc.Store(id='memory'),
-			dcc.Store(id='side_click'),
-			html.Div([
-				dcc.Tabs(id="tabs-styled-with-inline", value='tab-1', children=[
-					dcc.Tab(label='Dimentionality reduction', value='tab-1', style=tab_style, selected_style=tab_selected_style),
-					dcc.Tab(label='Feature map explorer', value='tab-2', style=tab_style, selected_style=tab_selected_style),
-					dcc.Tab(label='??', value='tab-3', style=tab_style, selected_style=tab_selected_style),
-					dcc.Tab(label='About', value='tab-4', style=tab_style, selected_style=tab_selected_style),
-				], style=tabs_styles),
-				html.Div(id='tabs-content-inline')
-			]),
-
-		],
-	)
-
-PAGE_ON = 0
+PAGE_ON = 4
 
 PAGE1 = html.Div(
 	id='page1',
@@ -367,7 +301,7 @@ PAGE1 = html.Div(
 					id="page-content",
 					style=CONTENT_STYLE,
 					children=[
-						dcc.Graph(id="graph-3d-plot-tsne",
+						dcc.Graph(id="tsne-graph",
 						          style={
 							          "display": "inline-block",
 							          "width": "50%",
@@ -462,25 +396,6 @@ PAGE2 = html.Div(
 								i: str(i) for i in [8, 16, 32, 64, 128]
 							},
 						),
-
-						NamedSlider(
-							name="Samples per volume",
-							short="samples",
-							min=1,
-							max=10,
-							step=None,
-							val=2,
-							marks={i: str(i) for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
-						),
-						NamedSlider(
-							name="Volumes per domain",
-							short="volumes",
-							min=1,
-							max=10,
-							step=None,
-							val=1,
-							marks={i: str(i) for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
-						),
 						NamedDropdown(
 							name="Mask Cut",
 							id="dropdown-mask_cut",
@@ -502,44 +417,19 @@ PAGE2 = html.Div(
 							value="None",
 						),
 
-						NamedSlider(
-							name="Number Of Iterations",
-							short="iterations",
-							min=250,
-							max=1000,
-							step=None,
-							val=500,
-							marks={
-								i: str(i) for i in [250, 500, 750, 1000]
-							},
-						),
-						NamedSlider(
-							name="Perplexity",
-							short="perplexity",
-							min=3,
-							max=100,
-							step=None,
-							val=30,
-							marks={i: str(i) for i in [3, 10, 30, 50, 100]},
-						),
-
 					]
 				),
 				html.Div(
 					id="page-content",
+
 					style=CONTENT_STYLE,
 					children=[
-						dcc.Graph(id="graph-3d-plot-tsne",
+						dcc.Graph(id="map-graph",
 						          style={
 							          "display": "inline-block",
-							          "width": "50%",
+							          "width": "100%",
 
 
-						          }),
-						dcc.Graph(id="div-plot-click-image",
-						          style={
-							          "display": "inline-block",
-							          "width": "50%",
 						          }),
 						]
 				)
@@ -561,6 +451,60 @@ PAGE4 = html.Div(
 		),
 	],
 ),
+
+def create_layout(app):
+	# Actual layout of the app
+	return html.Div(
+		className="row",
+		style={"max-width": "100%", "font-size": "1.5rem", "padding": "0px 0px"},
+		children=[
+			# Header
+			html.Div(
+				className="row header",
+				id="app-header",
+				style={"background-color": "#f9f9f9"},
+				children=[
+					html.Div(
+						[
+							html.Img(
+								src=app.get_asset_url("bonn-logo.png"),
+								className="logo",
+								id="bonn-image",
+							)
+						],
+						className="three columns header_img",
+					),
+					html.Div(
+						[
+							html.H3(
+								"Visualizing the effects of domain shift on CNN based image segmentation",
+								className="header_title",
+								id="app-title",
+							)
+						],
+						className="nine columns header_title_container",
+					),
+				],
+			),
+
+
+			# Body
+
+			dcc.Store(id='memory'),
+			dcc.Store(id='map-memory'),
+			dcc.Store(id='side_click'),
+			html.Div([
+				dcc.Tabs(id="tabs-styled-with-inline", value='tab-2', children=[
+					dcc.Tab(label='Dimentionality reduction', value='tab-1', style=tab_style, selected_style=tab_selected_style),
+					dcc.Tab(label='Feature map explorer', value='tab-2', style=tab_style, selected_style=tab_selected_style),
+					dcc.Tab(label='Autoencoder?', value='tab-3', style=tab_style, selected_style=tab_selected_style),
+					dcc.Tab(label='About', value='tab-4', style=tab_style, selected_style=tab_selected_style),
+				], style=tabs_styles),
+				html.Div(id='tabs-content-inline')
+			]),
+
+		],
+	)
 
 
 

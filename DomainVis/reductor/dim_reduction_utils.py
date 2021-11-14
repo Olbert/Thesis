@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 from torch.optim import Adam
 from torchvision import models
 from sklearn import preprocessing
-from model import UNet2D
-from misc_functions import preprocess_image, recreate_image, save_image
+from DomainVis.unet.model import UNet2D
+from DomainVis.unet.misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
-from utils.dataset import BasicDataset
+from DomainVis.database_process.dataset import BasicDataset
 from sklearn.decomposition import PCA
 import openTSNE
 from openTSNE import affinity, initialization

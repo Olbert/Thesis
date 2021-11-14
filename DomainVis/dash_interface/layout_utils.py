@@ -1,20 +1,10 @@
 import base64
-import pathlib
 import numpy as np
-import dash
-from dash import dcc
-from dash import html
 from PIL import Image
 from io import BytesIO
-from dash.dependencies import Input, Output, State
-from dash.exceptions import PreventUpdate
-import dash_bootstrap_components as dbc
 
-import dash_interface.layout
-import dash_interface.layout_utils
 import plotly.graph_objs as go
 
-import plotly.express as px
 import time
 
 

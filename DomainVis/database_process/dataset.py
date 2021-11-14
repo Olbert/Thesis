@@ -9,7 +9,7 @@ import logging
 from PIL import Image
 import nibabel as nib
 import cv2
-from utils.dataset_convert import preprocess_image
+from DomainVis.database_process.dataset_convert import preprocess_image
 
 class BasicDataset(Dataset):
     def __init__(self, imgs_dir, masks_dir, slices, size=(256, 256), mask_suffix=''):

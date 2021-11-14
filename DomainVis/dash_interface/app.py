@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-import os
 
 import dash
-import dash_interface.callbacks as callbacks
-import dash_interface.layout as layout
-import dash_interface.layout_utils
+import DomainVis.dash_interface.callbacks as callbacks
+import DomainVis.dash_interface.layout as layout
+
 # for the Local version, import local_layout and local_callbacks
 # from local import local_layout, local_callbacks
 

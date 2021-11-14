@@ -8,15 +8,15 @@ import pandas as pd
 from torch.optim import Adam
 from torchvision import models
 from sklearn import preprocessing
-from model import UNet2D
-from misc_functions import preprocess_image, recreate_image, save_image
+from DomainVis.unet.model import UNet2D
+from DomainVis.unet.misc_functions import preprocess_image, recreate_image, save_image
 from PIL import Image
-from utils.dataset import BasicDataset
-from utils.dim_reduction_utils import TSNE, PCA, LLE, Isomap, PCA_cuda
+from DomainVis.database_process.dataset import BasicDataset
+from DomainVis.reductor.dim_reduction_utils import TSNE, PCA, LLE, Isomap, PCA_cuda
 from skimage.transform import resize
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.dataset import BasicDataset, NumpyDataset
+from DomainVis.database_process.dataset import BasicDataset, NumpyDataset
 from torch.utils.data import DataLoader, random_split
 
 from os import listdir
@@ -274,33 +274,11 @@ def get_images_by_id(net, layer_name, id):
 	return image_mids, names
 
 
-class Reductor():
-	def __init__(self,
-	             model_path="E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Train2\checkpoints\CP_epoch200.pth"):
+class BasePresenter():
 
-		"""Parameters Init"""
-		self.names = []
-
-		self.image_mids = []
-		self.eval_maps = []
-		self.input = []
-		self.output = []
-		self.input_img_size = (128, 128)
-		self.activ_img_size = (8, 8)
-		self.coord = np.zeros(self.activ_img_size)
-
-		""" Net setup """
-		self.net = UNet2D(n_chans_in=1, n_chans_out=1)
-		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-		self.net.to(device=device)
-		self.net.load_state_dict(torch.load(model_path, map_location=device))
 
 	def get_database(self, net, test_loaders, layer_name, threshold, img_size, mask_cut, upsampling, plot_mode):
-		image_mids_temp = []
-		image_mids = []
-		eval_maps_temp = []
-		eval_maps = []
-		true_masks = []
+
 		for test_loader in test_loaders:
 			image_mids_temp = []
 			eval_maps_temp = []
@@ -364,22 +342,33 @@ class Reductor():
 		self.input = np.array(self.input)
 		self.names = np.array(self.names)
 
-	def reduction(self, algos, modes, layer, threshold, img_size, volume_num, sample_num, mask_cut, perp=None, n_iter=500,
+class Reductor(BasePresenter):
+	def __init__(self,
+	             model_path="E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Train2\checkpoints\CP_epoch200.pth"):
+
+		"""Parameters Init"""
+		self.names = []
+
+		self.image_mids = []
+		self.eval_maps = []
+		self.input = []
+		self.output = []
+		self.input_img_size = (128, 128)
+		self.activ_img_size = (8, 8)
+		self.coord = np.zeros(self.activ_img_size)
+
+		""" Net setup """
+		self.net = UNet2D(n_chans_in=1, n_chans_out=1)
+		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+		self.net.to(device=device)
+		self.net.load_state_dict(torch.load(model_path, map_location=device))
+
+
+	def reduction(self, algos, modes, layer_name, threshold, img_size, volume_num, sample_num, mask_cut, perp=None, n_iter=500,
 	              save=False):
 
 		upsampling = False
 
-		# TODO: find better way
-		# if perp is None:
-		# 	perp_range = {
-		# 		'feature': [30, 61, 10],
-		# 		'pixel': [1, 4, 1]
-		# 	}
-		# else:
-		# 	perp_range = {
-		# 		'feature': [perp, perp + 1, 1],
-		# 		'pixel': [perp, perp + 1, 1]
-		# 	}
 		self.activ_img_size = img_size
 		img_types = ['TP', 'TN', 'FP', 'FN']
 
@@ -388,10 +377,9 @@ class Reductor():
 		desired_points = 200000  # Works not everywhere
 		test_loaders = get_data(volume_num, sample_num)
 
-		self.get_database(self.net, test_loaders, layer, threshold, img_size, mask_cut, upsampling, plot_mode)
+		self.get_database(self.net, test_loaders, layer_name, threshold, img_size, mask_cut, upsampling, plot_mode)
 
 		""" Dimensionality reduction """
-		# TODO: cycle to iterate through samples?
 		for algo in algos:
 			for mode in modes:
 				if algo == 'tsne':
@@ -692,33 +680,99 @@ class Reductor():
 		return reductor
 
 
+
+class MapPresenter():
+	def __init__(self,
+	             model_path="E:\Thesis\conp-dataset\projects\calgary-campinas\CC359\Train2\checkpoints\CP_epoch200.pth"):
+
+		"""Parameters Init"""
+		self.names = []
+
+		self.image_mids = []
+		self.eval_maps = []
+		self.input = []
+		self.output = []
+		self.input_img_size = (128, 128)
+		self.activ_img_size = (8, 8)
+		self.coord = np.zeros(self.activ_img_size)
+
+		""" Net setup """
+		self.net = UNet2D(n_chans_in=1, n_chans_out=1)
+		device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+		self.net.to(device=device)
+		self.net.load_state_dict(torch.load(model_path, map_location=device))
+
+	def present(self, layer_name, img_size):
+
+		self.activ_img_size = img_size
+
+		data = get_data(volume_num=1, sample_num=1)
+
+		self.names.append(data[0][1])
+		test_loader = data[0][0]
+
+		for batch in test_loader:
+			image, true_mask = batch['image'], batch['mask']
+			true_mask = torch.sigmoid(true_mask)
+			self.true_mask = true_mask.cpu().numpy()[0, 0]
+
+			self.image_mid, self.net_output = get_mid_output(self.net, image, layer_name)
+			break
+
+		n = int(np.ceil(np.sqrt(self.image_mid.shape[0])))
+		# add epty cells to make it square
+		self.image_mid = np.concatenate((self.image_mid,
+		                np.zeros((n * n - self.image_mid.shape[0], self.image_mid.shape[1], self.image_mid.shape[2]))),
+		               axis=0)
+		self.image_mid = self.image_mid.reshape(n, n, self.image_mid.shape[1], self.image_mid.shape[2])
+
+		x=0
+
+	def get_data(self):
+		keys = ['input', 'output', 'names', 'eval_maps', 'image_mids']
+		self.__dict__.pop('net', None)
+
+		return self.__dict__
+
+	@staticmethod
+	def auto(modes, layer_name, img_size, mask_cut):
+		mapPresenter = MapPresenter()
+		mapPresenter.present(layer_name, img_size)
+		return mapPresenter
+
+
+
 if __name__ == '__main__':
 	""" Variables setup """
+	layer = 'init_path'
+	img_size = (128, 128)
+	map = MapPresenter.auto(0,layer,img_size,0)
 
-	algos = ['pca_cuda']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
-	modes = ['pixel', 'feature']  # ['feature', 'pixel','pic_to_coord']  # smth else?
+	# algos = ['pca_cuda']  # ['tsne', 'pca', 'isomap', 'lle', 'full']
+	# modes = ['pixel', 'feature']  # ['feature', 'pixel','pic_to_coord']  # smth else?
+	#
+	# layers = ['init_path', 'down1', 'down2', 'up1', 'out_path']
+	#
+	# thresholds = [None]
+	# img_size = (32, 32)
+	# img_sizes = [(8, 8), (16, 16), (32, 32), (64, 64), (128, 128)]
+	# show_im = False
+	# crop_im = False
+	# volume_num = 2
+	# sample_num = 2
+	# perp = 1
+	# save = True
+	#
+	# mask_cuts = [None]  # 'true', 'predict', None
+	# n_init = 250
+	#
+	# n_iters = [500]
+	# """ Image processing and layer output """
+	# for n_iter in n_iters:
+	# 	for threshold in thresholds:
+	# 		for mask_cut in mask_cuts:
+	# 			for img_size in img_sizes:
+	# 				for layer_name in layers:
+	# 					Reductor.auto(algos, modes, layer_name, threshold, img_size, volume_num, sample_num, mask_cut,
+	# 					              perp, n_iter, save)
 
-	layers = ['init_path', 'down1', 'down2', 'up1', 'out_path']
-
-	thresholds = [None]
-	img_size = (32, 32)
-	img_sizes = [(8, 8), (16, 16), (32, 32), (64, 64), (128, 128)]
-	show_im = False
-	crop_im = False
-	volume_num = 2
-	sample_num = 2
-	perp = 1
-	save = True
-
-	mask_cuts = [None]  # 'true', 'predict', None
-	n_init = 250
-
-	n_iters = [500]
-	""" Image processing and layer output """
-	for n_iter in n_iters:
-		for threshold in thresholds:
-			for mask_cut in mask_cuts:
-				for img_size in img_sizes:
-					for layer_name in layers:
-						Reductor.auto(algos, modes, layer_name, threshold, img_size, volume_num, sample_num, mask_cut,
-						              perp, n_iter, save)

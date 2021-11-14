@@ -1,9 +1,6 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import nibabel as nib
 import cv2
 import os
-from unet.utils import dataset_convert
 from dataset_convert import preprocess_3Dimage
 def show_slices(slices):
     """ Function to display row of image slices """
