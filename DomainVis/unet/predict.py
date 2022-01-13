@@ -8,9 +8,9 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
 
-from model import UNet2D
-from utils.data_vis import plot_img_and_mask
-from utils.dataset import BasicDataset
+from DomainVis.unet.model import UNet2D
+from DomainVis.unet.utils.data_vis import plot_img_and_mask
+from DomainVis.database_process.dataset import BasicDataset
 
 
 def predict_img(net,

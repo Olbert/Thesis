@@ -1,4 +1,5 @@
 import pathlib
+import json
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
@@ -18,7 +19,7 @@ def Card(children, **kwargs):
 	return html.Section(children, className="card-style")
 
 
-def NamedDropdown(name, id, options, placeholder, value):
+def NamedDropdown(name, id, options=[], placeholder='', value=''):
 	return html.Div(
 		style={"margin": "25px 5px 30px 0px"},
 		id=f"div-{id}",
@@ -88,7 +89,7 @@ SIDEBAR_STYLE = {
 	"left": "0",
 	"bottom": "0",
 	"width": "20%",
-	"height": "100%",
+	"height": "600px",
 	"z-index": 1,
 	"overflow-x": "hidden",
 	"transition": "all 0.3s",
@@ -102,7 +103,7 @@ SIDEBAR_HIDEN = {
 	"left": "-16rem",
 	"bottom": "0",
 	"width": "0",
-	"height": "100%",
+	"height": "600px",
 	"z-index": 1,
 	"overflow-x": "hidden",
 	"transition": "all 0.3s",
@@ -148,8 +149,46 @@ tab_selected_style = {
 }
 
 
-PAGE_ON = 4
+PAGE_ON = 2
+PAGE0 =html.Div(
+	id='page0',
+	className="row background",
+	# style={"padding": "10px"},
+	children=[
+		html.Div(style={'fontSize': 18},
+			children=[
+				html.P('Select model path'),
+				dcc.Input(
+					id='model_path-input',
+					style={"display": "inline-block", "margin-left": "7px", 'width':'500px'},
+				),
+				dcc.Upload(id='model-upload', children=[html.Button('Upload File')]),
+			],
+		),
+		html.Div(style={'fontSize': 18},
+			children=[
+				html.P('Select data path'),
+				dcc.Input(
+					id='database_path-input',
+					style={"display": "inline-block", "margin-left": "7px", 'width':'500px'},
+				),
+				dcc.Upload(id='database-upload', children=[html.Button('Upload Files')], multiple=True),
+			],
+		),
+		html.Div(style={'fontSize': 18},
+				children=[
+					html.P('Select label path'),
+					dcc.Input(
+						id='label_path-input',
+						style={"display": "inline-block", "margin-left": "7px", 'width':'500px'},
 
+					),
+					dcc.Upload(id='label-upload', children=[html.Button('Upload Files')],multiple=True),
+				],
+			)
+
+	],
+),
 PAGE1 = html.Div(
 	id='page1',
 	className="row background",
@@ -177,8 +216,8 @@ PAGE1 = html.Div(
 									"value": "pca",
 								},
 								{
-									"label": "LLA",
-									"value": "lla",
+									"label": "LLE",
+									"value": "lle",
 								},
 								{
 									"label": "IsoMap",
@@ -204,23 +243,23 @@ PAGE1 = html.Div(
 							placeholder="Select mode",
 							value="pixel",
 						),
-						# TODO: Generate on fly
 						NamedDropdown(
 							name="Layer",
 							id="dropdown-layer",
+							placeholder="Select layer",
 							options=[
-								{"label": "Initial", "value": "init_path", },
-								{"label": "Down1", "value": "down1", },
-								{"label": "Down2", "value": "down2", },
-								{"label": "Down3", "value": "down3", },
-								{"label": "Up3", "value": "up3", },
-								{"label": "Up2", "value": "up2", },
-								{"label": "Up1", "value": "up1", },
-								{"label": "Output path", "value": "out_path", },
+								{"label": "input", "value": "input", },
+								{"label": "init_path", "value": "init_path", },
+								{"label": "down1", "value": "down1", },
+								{"label": "down2", "value": "down2", },
+								{"label": "down3", "value": "down3", },
+								{"label": "up1", "value": "up1", },
+								{"label": "up2", "value": "up2", },
+								{"label": "up3", "value": "up3", },
+								{"label": "out_path", "value": "out_path", },
 
 							],
-							placeholder="Select layer",
-							value="init_path",
+							value="down1",
 						),
 						NamedSlider(
 							# TODO: Change dynamically with layer output size?
@@ -229,7 +268,7 @@ PAGE1 = html.Div(
 							min=8,
 							max=128,
 							step=None,
-							val=32,
+							val=8,
 							marks={
 								i: str(i) for i in [8, 16, 32, 64, 128]
 							},
@@ -254,7 +293,7 @@ PAGE1 = html.Div(
 							marks={i: str(i) for i in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]},
 						),
 						NamedDropdown(
-							name="Mask Cut",
+							name="Background remove",
 							id="dropdown-mask_cut",
 							options=[
 								{
@@ -294,7 +333,7 @@ PAGE1 = html.Div(
 							val=30,
 							marks={i: str(i) for i in [3, 10, 30, 50, 100]},
 						),
-
+						html.Button(id="reset-button", children=["Reset graph"])
 					]
 				),
 				html.Div(
@@ -304,15 +343,19 @@ PAGE1 = html.Div(
 						dcc.Graph(id="tsne-graph",
 						          style={
 							          "display": "inline-block",
-							          "width": "50%",
+							          "width": "45%",
 
 
 						          }),
 						dcc.Graph(id="div-plot-click-image",
 						          style={
 							          "display": "inline-block",
-							          "width": "50%",
-						          }),
+							          "width": "45%",
+							          "xaxis": {"visible": False,},
+							          "yaxis": {"visible": False, },
+						          },
+						          config = {'modeBarButtons': [['zoom2d', 'pan2d','select2d','lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']]}
+						          ),
 						]
 				)
 			]
@@ -335,87 +378,81 @@ PAGE2 = html.Div(
 					style=SIDEBAR_STYLE,
 					children=[
 						NamedDropdown(
-							name="name",
-							id="id",
+							name="Domain",
+							id="domain-layer",
 							options=[
-								{
-									"label": "1",
-									"value": "1",
-								},
-								{
-									"label": "2",
-									"value": "2",
-								},
+								{"label": "Domain1", "value": "domain1", },
+								{"label": "Domain2", "value": "domain2", },
+
 							],
-							placeholder="Select an algorithm",
-							value="pca",
+							placeholder="Select layer",
+							value="init_path",
 						),
 						NamedDropdown(
 							name="Mode",
 							id="dropdown-mode",
 							options=[
 								{
-									"label": "Pixel",
-									"value": "pixel",
+									"label": "Filter",
+									"value": "filter",
 								},
 								{
-									"label": "Feature",
-									"value": "feature",
+									"label": "Activation",
+									"value": "activation",
 								},
 							],
 							placeholder="Select mode",
-							value="pixel",
+							value="activation",
 						),
-						# TODO: Generate on fly
 						NamedDropdown(
 							name="Layer",
 							id="dropdown-layer",
+							placeholder="Select layer",
 							options=[
-								{"label": "Initial", "value": "init_path", },
-								{"label": "Down1", "value": "down1", },
-								{"label": "Down2", "value": "down2", },
-								{"label": "Down3", "value": "down3", },
-								{"label": "Up3", "value": "up3", },
-								{"label": "Up2", "value": "up2", },
-								{"label": "Up1", "value": "up1", },
-								{"label": "Output path", "value": "out_path", },
+								{"label": "init_path", "value": "init_path", },
+								{"label": "down1", "value": "down1", },
+								{"label": "down2", "value": "down2", },
+								{"label": "down3", "value": "down3", },
+								{"label": "up1", "value": "up1", },
+								{"label": "up2", "value": "up2", },
+								{"label": "up3", "value": "up3", },
+								{"label": "out_path", "value": "out_path", },
 
 							],
-							placeholder="Select layer",
-							value="init_path",
 						),
-						NamedSlider(
-							# TODO: Change dynamically with layer output size?
-							name="Image size",
-							short="img_size",
-							min=8,
-							max=128,
-							step=None,
-							val=32,
-							marks={
-								i: str(i) for i in [8, 16, 32, 64, 128]
-							},
-						),
-						NamedDropdown(
-							name="Mask Cut",
-							id="dropdown-mask_cut",
-							options=[
-								{
-									"label": "Prediction",
-									"value": "predict",
-								},
-								{
-									"label": "True mask",
-									"value": "true_mask",
-								},
-								{
-									"label": "None",
-									"value": "None",
-								},
-							],
-							placeholder="Type of mask to cut",
-							value="None",
-						),
+						# NamedSlider(
+						# 	# TODO: Change dynamically with layer output size?
+						# 	name="Image size",
+						# 	short="img_size",
+						# 	min=8,
+						# 	max=128,
+						# 	step=None,
+						# 	val=32,
+						# 	marks={
+						# 		i: str(i) for i in [8, 16, 32, 64, 128]
+						# 	},
+						# ),
+						# NamedDropdown(
+						# 	name="Mask Cut",
+						# 	id="dropdown-mask_cut",
+						# 	options=[
+						# 		{
+						# 			"label": "Prediction",
+						# 			"value": "predict",
+						# 		},
+						# 		{
+						# 			"label": "True mask",
+						# 			"value": "true_mask",
+						# 		},
+						# 		{
+						# 			"label": "None",
+						# 			"value": "None",
+						# 		},
+						# 	],
+						# 	placeholder="Type of mask to cut",
+						# 	value="None",
+						# ),
+						html.Button(id="reset-button", children=["Reset graph"])
 
 					]
 				),
@@ -428,8 +465,8 @@ PAGE2 = html.Div(
 						          style={
 							          "display": "inline-block",
 							          "width": "100%",
-
-
+							          "xaxis": {"visible": False, },
+							          "yaxis": {"visible": False, },
 						          }),
 						]
 				)
@@ -451,7 +488,7 @@ PAGE4 = html.Div(
 		),
 	],
 ),
-
+initial_layout = {}
 def create_layout(app):
 	# Actual layout of the app
 	return html.Div(
@@ -489,19 +526,29 @@ def create_layout(app):
 
 
 			# Body
-
-			dcc.Store(id='memory'),
-			dcc.Store(id='map-memory'),
+			dcc.Store(id='long_term_memory'),
+			dcc.Store(id='reductor_memory'),
+			dcc.Store(id='map-memory',data=(0,0)),
 			dcc.Store(id='side_click'),
+			dcc.Store(id='model_path-memory'),
+			dcc.Store(id='database_domains-memory'),
+			dcc.Store(id='label_domains-memory'),
+			dcc.Store(id='page-memory'),
 			html.Div([
-				dcc.Tabs(id="tabs-styled-with-inline", value='tab-2', children=[
-					dcc.Tab(label='Dimentionality reduction', value='tab-1', style=tab_style, selected_style=tab_selected_style),
-					dcc.Tab(label='Feature map explorer', value='tab-2', style=tab_style, selected_style=tab_selected_style),
-					dcc.Tab(label='Autoencoder?', value='tab-3', style=tab_style, selected_style=tab_selected_style),
-					dcc.Tab(label='About', value='tab-4', style=tab_style, selected_style=tab_selected_style),
+				dcc.Tabs(id="tabs-styled-with-inline", value='tab-0', children=[
+					dcc.Tab(label='Tool setup',                 value='tab-0', style=tab_style, selected_style=tab_selected_style),
+					dcc.Tab(label='Dimentionality reduction',   value='tab-1', style=tab_style, selected_style=tab_selected_style),
+					dcc.Tab(label='Feature map explorer',       value='tab-2', style=tab_style, selected_style=tab_selected_style),
+					# dcc.Tab(label='Autoencoder?',             value='tab-3', style=tab_style, selected_style=tab_selected_style),
+					dcc.Tab(label='About',                      value='tab-4', style=tab_style, selected_style=tab_selected_style),
 				], style=tabs_styles),
-				html.Div(id='tabs-content-inline')
+				html.Div(id='tabs-content-inline'
+
+				         )
 			]),
+			html.Div(id='user-cache', style={'display': 'none'},
+			         children=json.dumps(initial_layout)),
+			html.Div(id='invisible_text', style={'visible': 'False'}),
 
 		],
 	)

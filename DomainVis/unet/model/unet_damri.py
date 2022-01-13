@@ -112,7 +112,7 @@ class UNet2D(nn.Module):
         return x_out
 
 
-    def default(self):
+    def default(self, optim='SGD'):
         # loss
         criterion = torch.nn.BCEWithLogitsLoss()
         # model
@@ -126,15 +126,11 @@ class UNet2D(nn.Module):
 
         # optimizer
         lr_init = 1e-3
-        optimizer = torch.optim.SGD
 
-
-        #TODO: Find what this is
-
-        # predict
-        # @slicewise  # 3D -> 2D iteratively
-        # @add_extract_dims(2)  # 2D -> (4D -> predict -> 4D) -> 2D
-        # @divisible_shape(divisor=[8] * 2, padding_values=np.min)  # since the unet arch. input should be divided by 8
+        if optim=="SGD":
+            optimizer = torch.optim.SGD
+        elif optim=="Adam":
+            optimizer = torch.optim.Adam
 
         return criterion, n_filters, batch_size, batches_per_epoch, n_epochs, lr_init, optimizer
 

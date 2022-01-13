@@ -58,15 +58,17 @@ def plot2d(names, output, eval_map=None):
 	data = []
 	if eval_map is not None:
 		img_types = ['TP', 'TN', 'FP', 'FN']
-		for i in range(0, output.shape[0]):
+		for i in range(0, names.shape[0]):
 			for type in range(0, len(img_types)):
 				scatter = go.Scatter(
 					name=names[i] + "_" + img_types[type],
 					x=output[i, eval_map[i] == type][:, 0],
 					y=output[i, eval_map[i] == type][:, 1],
-					text="some text",  # [idx for _ in range(val["x"].shape[0])],
+					# text="some text",  # [idx for _ in range(val["x"].shape[0])],
 					textposition="top center",
 					mode="markers",
+					hoverinfo ="text",
+					hovertext =[idx for idx in np.array(np.where(eval_map[i] == type)).T],
 					marker=dict(size=10, symbol="circle"),
 				)
 				data.append(scatter)

@@ -1,29 +1,18 @@
-import os
-import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
-import torch
+
 import sklearn.manifold
-import matplotlib.pyplot as plt
-from torch.optim import Adam
-from torchvision import models
+
 from sklearn import preprocessing
-from DomainVis.unet.model import UNet2D
-from DomainVis.unet.misc_functions import preprocess_image, recreate_image, save_image
-from PIL import Image
-from DomainVis.database_process.dataset import BasicDataset
-from sklearn.decomposition import PCA
+
 import openTSNE
 from openTSNE import affinity, initialization
 scaler = preprocessing.MinMaxScaler()
-import pycuda.autoinit
-import pycuda.gpuarray as gpuarray
+
+
 import numpy as np
-import skcuda.linalg as linalg
-from skcuda.linalg import PCA as cuPCA
+# import skcuda.linalg as linalg
+# from skcuda.linalg import PCA as cuPCA
+# import pycuda.gpuarray as gpuarray
 
-
-from matplotlib import pyplot as plt
-from sklearn import datasets
 
 class Basic_reduction():
 	def __init__(self, mode):
@@ -79,6 +68,7 @@ class PCA(Basic_reduction):
 		self.fit = fit
 		self.function = sklearn.decomposition.PCA(n_components=n_components)
 
+
 class PCA_cuda(Basic_reduction):
 
 	def __init__(self, mode, n_components=2, fit=True):
@@ -115,18 +105,18 @@ class PCA_cuda(Basic_reduction):
 
 class LLE(Basic_reduction):
 
-	def __init__(self, mode, n_components=2):
+	def __init__(self, mode, n_components=2, fit=True):
 		super().__init__(mode)
-
+		self.fit = fit
 		self.function = sklearn.manifold.LocallyLinearEmbedding(n_components=n_components)
 
 
 
 class Isomap(Basic_reduction): # TODO: Not done (n_neighbours is always 2
 
-	def __init__(self, mode, n_components=2):
+	def __init__(self, mode, n_components=2, fit=True):
 		super().__init__(mode)
-
+		self.fit = fit
 		self.function = sklearn.manifold.Isomap(n_components=n_components,n_neighbors=2)
 
 
@@ -139,7 +129,7 @@ class TSNE(Basic_reduction):  # TODO static?
 		self.init = init
 		# self.function = sklearn.manifold.TSNE(n_components=n_components, perplexity=perp, init=init, n_iter=n_iter)
 		self.function = openTSNE.TSNE(
-			perplexity=30,
+			perplexity=perp,
 		    initialization="pca",
 		    metric="cosine",
 		    n_jobs=8,
@@ -156,6 +146,7 @@ class TSNE(Basic_reduction):  # TODO static?
 				metric="cosine",
 				n_jobs=8,
 				random_state=3,
+
 			)
 			init = openTSNE.initialization.pca(output_mid, random_state=42)
 

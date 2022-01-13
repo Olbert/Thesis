@@ -12,16 +12,18 @@ import scipy.misc
 from torch import optim
 from tqdm import tqdm
 
-from eval import eval_net
-from model import UNet2D
+from DomainVis.unet.eval import eval_net
+from DomainVis.unet.model import UNet2D
+
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.dataset import BasicDataset, NumpyDataset
+from DomainVis.database_process.dataset import BasicDataset, NumpyDataset, H5Dataset
+from DomainVis.database_process.dataset_convert import convert_to_h5
 from torch.utils.data import DataLoader, random_split
 
 dir_img = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train2\\images/'
 dir_mask = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train2\\masks/'
-dir_checkpoint = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train2\\checkpoints/'
+dir_checkpoint = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train3\\checkpoints/'
 if platform.system() == 'Windows': n_cpu= 0
 
 def adjust_learning_rate(optimizer, epoch):
@@ -39,10 +41,28 @@ def train_net(net,
               save_cp=True,
               img_size=(256, 256)):
     # TODO: change place
-    slices = 60
-    dataset = BasicDataset(dir_img, dir_mask, slices, img_size, '_ss')
+    slices = 40
+    # # dataset = BasicDataset(dir_img, dir_mask, slices, img_size, '_ss')
+    #
+    # dir_img_out = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train3\\images/'
+    # dir_mask_out = 'E:\\Thesis\\conp-dataset\\projects\\calgary-campinas\\CC359\\Train3\\masks/'
+    # if len(os.listdir(dir_img_out)) == 0:
+    #     convert_to_h5(dir_img, dir_img_out, 'data')
+    # if len(os.listdir(dir_mask_out)) == 0:
+    #     convert_to_h5(dir_mask, dir_mask_out, 'masks')
+    # dataset = H5Dataset('philips',
+    #                     os.path.join(dir_img_out, 'data.h5'),
+    #                     os.path.join(dir_mask_out, 'masks.h5'),
+    #                     slices, img_size, '_ss')
 
+    dir_img_out = os.path.join(dir_img, name)
 
+    dir_checkpoint = os.path.join(dir_img_out, 'checkpoints')
+
+    dataset = H5Dataset(name,
+                        os.path.join(dir_img_out, 'data.h5'),
+                        os.path.join(dir_img_out, 'masks.h5'),
+                        slices, img_size, '_ss')
 
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
@@ -146,7 +166,7 @@ def train_net(net,
             except OSError:
                 pass
             torch.save(net.state_dict(),
-                       dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
+                      os.path.join(dir_checkpoint,f'CP_epoch{epoch + 1}.pth'))
             logging.info(f'Checkpoint {epoch + 1} saved !')
 
     writer.close()
@@ -171,47 +191,48 @@ def get_args():
     return parser.parse_args()
 
 
+
+dir_img = 'E:\\Thesis\\gdrive\\train'
+
+model_names = ['philips_15',
+         'philips_3',
+         'siemens_15',
+         'siemens_3',
+         'ge_15',
+         'ge_3'
+         ]
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     args = get_args()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
-    # Change here to adapt to your data
-    # n_channels=3 for RGB images
-    # n_chans_out is the number of probabilities you want to get per pixel
-    #   - For 1 class and background, use n_chans_out=1
-    #   - For 2 classes, use n_chans_out=1
-    #   - For N > 2 classes, use n_chans_out=N
-    net = UNet2D(n_chans_in=1, n_chans_out=1)
-    # logging.info(f'Network:\n'
-    #              f'\t{net.n_chans_in} input channels\n'
-    #              f'\t{net.n_chans_out} output channels (classes)\n'
-    #              f'\t{"Bilinear" if net.bilinear else "Transposed conv"} upscaling')
+    for name in model_names:
 
-    if args.load:
-        net.load_state_dict(
-            torch.load(args.load, map_location=device)
-        )
-        logging.info(f'Model loaded from {args.load}')
+        net = UNet2D(n_chans_in=1, n_chans_out=1)
 
-    net.to(device=device)
-    # TODO: Research this
-    # faster convolutions, but more memory
-    # cudnn.benchmark = True
+        if args.load:
+            net.load_state_dict(
+                torch.load(args.load, map_location=device)
+            )
+            logging.info(f'Model loaded from {args.load}')
 
-    try:
-        train_net(net=net,
-                  epochs=args.epochs,
-                  batch_size=args.batchsize,
-                  lr=args.lr,
-                  device=device,
-                  img_size=args.size,
-                  val_percent=np.float(args.val) / 100)
-    except KeyboardInterrupt:
-        torch.save(net.state_dict(), 'INTERRUPTED.pth')
-        logging.info('Saved interrupt')
+        net.to(device=device)
+
+
         try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
+            train_net(net=net,
+                      epochs=args.epochs,
+                      batch_size=args.batchsize,
+                      lr=args.lr,
+                      device=device,
+                      img_size=args.size,
+                      val_percent=float(args.val) / 100)
+        except KeyboardInterrupt:
+            torch.save(net.state_dict(), 'INTERRUPTED.pth')
+            logging.info('Saved interrupt')
+            try:
+                sys.exit(0)
+            except SystemExit:
+                os._exit(0)

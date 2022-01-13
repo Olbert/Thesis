@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import cv2
 import os
-from dataset_convert import preprocess_3Dimage
+from DomainVis.database_process.dataset_convert import preprocess_3Dimage
 def show_slices(slices):
     """ Function to display row of image slices """
     fig, axes = plt.subplots(1, len(slices))
