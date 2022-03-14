@@ -105,24 +105,26 @@ class PCA_cuda(Basic_reduction):
 
 class LLE(Basic_reduction):
 
-	def __init__(self, mode, n_components=2, fit=True):
+	def __init__(self, mode, n_components=2, fit=True, n_neighbors = 5):
 		super().__init__(mode)
 		self.fit = fit
-		self.function = sklearn.manifold.LocallyLinearEmbedding(n_components=n_components)
+		self.n_neighbors = n_neighbors
+		self.function = sklearn.manifold.LocallyLinearEmbedding(n_components=n_components,n_neighbors=n_neighbors)
 
 
 
 class Isomap(Basic_reduction): # TODO: Not done (n_neighbours is always 2
 
-	def __init__(self, mode, n_components=2, fit=True):
+	def __init__(self, mode, n_components=2, fit=True, n_neighbors = 5):
 		super().__init__(mode)
 		self.fit = fit
-		self.function = sklearn.manifold.Isomap(n_components=n_components,n_neighbors=2)
+		self.n_neighbors = n_neighbors
+		self.function = sklearn.manifold.Isomap(n_components=n_components,n_neighbors=n_neighbors)
 
 
 class TSNE(Basic_reduction):  # TODO static?
 
-	def __init__(self, mode, perp, init = 'random', n_components=2, n_iter=500):
+	def __init__(self, mode, perp, option = 'std', init = 'random', n_components=2, n_iter=500):
 		super().__init__(mode)
 		self.perp = perp
 		self.mode = mode
@@ -130,63 +132,60 @@ class TSNE(Basic_reduction):  # TODO static?
 		# self.function = sklearn.manifold.TSNE(n_components=n_components, perplexity=perp, init=init, n_iter=n_iter)
 		self.function = openTSNE.TSNE(
 			perplexity=perp,
-		    initialization="pca",
+		    initialization=init,
 		    metric="cosine",
 		    n_jobs=8,
 		    random_state=3,
 		)
+		self.option = option
 
 	def get_manifold(self, output_mid, fit=False):
 		if (self.mode == 'pixel'):
 			# output_mid = output_mid.reshape(output_mid.shape[0], -1).swapaxes(0, 1)
 
-			affinities_multiscale_mixture = openTSNE.affinity.Multiscale(
-				output_mid,
-				perplexities=[50, 1000],
-				metric="cosine",
-				n_jobs=8,
-				random_state=3,
+			if self.option=='multiscale':
+				affinities_multiscale_mixture = openTSNE.affinity.Multiscale(
+					output_mid,
+					perplexities=[50, 1000],
+					metric="cosine",
+					n_jobs=8,
+					random_state=3,
 
-			)
-			init = openTSNE.initialization.pca(output_mid, random_state=42)
+				)
+				init = openTSNE.initialization.pca(output_mid, random_state=42)
 
-			embedding_multiscale = openTSNE.TSNE(n_jobs=8).fit(
-				affinities=affinities_multiscale_mixture,
-				initialization=init,
-			)
-			output_2d = embedding_multiscale
-
-			# output_2d = self.function.fit_transform(output_mid).astype(
-				# 	np.float)
+				embedding_multiscale = openTSNE.TSNE(n_jobs=8).fit(
+					affinities=affinities_multiscale_mixture,
+					initialization=init,
+				)
+				output_2d = scaler.fit_transform(embedding_multiscale)
+			elif self.option =='std':
+				output_2d = self.function.fit(output_mid)
 
 
 		elif (self.mode == 'feature'):
+
 			# output_mid = output_mid.reshape(output_mid.shape[0],-1)
 
 			# output_2d = self.function.fit_transform(output_mid).astype(
 			# 			# 	np.float)
-			affinities_multiscale_mixture = openTSNE.affinity.Multiscale(
-				output_mid,
-				perplexities=[2, 20],
-				metric="cosine",
-				n_jobs=8,
-				random_state=3,
-			)
-			init = openTSNE.initialization.pca(output_mid, random_state=42)
+			if self.option =='multiscale':
+				affinities_multiscale_mixture = openTSNE.affinity.Multiscale(
+					output_mid,
+					perplexities=[2, 20],
+					metric="cosine",
+					n_jobs=8,
+					random_state=3,
+				)
+				init = openTSNE.initialization.pca(output_mid, random_state=42)
 
-			embedding_multiscale = openTSNE.TSNE(n_jobs=8).fit(
-				affinities=affinities_multiscale_mixture,
-				initialization=init,
-			)
-			output_2d = embedding_multiscale
-
-		elif (self.mode == 'pic_to_coord'):
-			output_mid = output_mid.reshape(1, -1)
-
-			output_2d = self.function.fit_transform(output_mid).astype(
-				np.float)
-
-		output_2d = scaler.fit_transform(output_2d)  # ?
+				embedding_multiscale = openTSNE.TSNE(n_jobs=8).fit(
+					affinities=affinities_multiscale_mixture,
+					initialization=init,
+				)
+				output_2d = scaler.fit_transform(embedding_multiscale)  # ?
+			elif self.option =='std':
+				output_2d = self.function.fit(output_mid)
 
 		return output_2d
 

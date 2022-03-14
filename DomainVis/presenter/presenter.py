@@ -1,30 +1,11 @@
 import os
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
+
 import torch
 import torchvision
-import sklearn.manifold
-import matplotlib.pyplot as plt
-import pandas as pd
-from torch.optim import Adam
-from torchvision import models
-from sklearn import preprocessing
-from DomainVis.unet.model import UNet2D
-from DomainVis.unet.misc_functions import preprocess_image, recreate_image, save_image
-from PIL import Image
-from DomainVis.database_process.dataset import BasicDataset
-from DomainVis.reductor.reductor_algos import TSNE, PCA, LLE, Isomap, PCA_cuda
-from skimage.transform import resize
 
-from torch.utils.tensorboard import SummaryWriter
-from DomainVis.database_process.dataset import BasicDataset, NumpyDataset,BasicProcessedDataset, H5Dataset
-from torch.utils.data import DataLoader, random_split
 import DomainVis.reductor.reductor_utils as reductor_utils
-from os import listdir
-from os.path import isfile, join
-from os import walk
-import json
-import config
+
 np.random.seed(seed=0)
 
 torch.random.manual_seed(seed=0)
@@ -75,7 +56,6 @@ class MapPresenter():
 
 				with torch.no_grad():
 					raw_out = self.net(img)
-
 
 					modules = getattr(self.net, layer_name)
 

@@ -48,7 +48,7 @@ def numpy_to_b64(np_array, enc_format='png', scalar=True, **kwargs):
 	return pil_to_b64(im_pil, enc_format, **kwargs)
 
 
-def plot2d(names, output, eval_map=None):
+def plot2d(names, output, eval_map=None, full=False):
 	axes = dict(title="", showgrid=True, zeroline=False, showticklabels=False)
 
 	layout = go.Layout(
@@ -56,19 +56,32 @@ def plot2d(names, output, eval_map=None):
 		scene=dict(xaxis=axes, yaxis=axes),
 	)
 	data = []
-	if eval_map is not None:
-		img_types = ['TP', 'TN', 'FP', 'FN']
-		for i in range(0, names.shape[0]):
-			for type in range(0, len(img_types)):
+	if full:
+		if eval_map is not None:
+			img_types = ['TP', 'TN', 'FP', 'FN']
+			for i in range(0, names.shape[0]):
+				for type in range(0, len(img_types)):
+					scatter = go.Scatter(
+						name=names[i] + "_" + img_types[type],
+						x=output[i, eval_map[i] == type][:, 0],
+						y=output[i, eval_map[i] == type][:, 1],
+						# text="some text",  # [idx for _ in range(val["x"].shape[0])],
+						textposition="top center",
+						mode="markers",
+						hoverinfo ="text",
+						hovertext =[idx for idx in np.array(np.where(eval_map[i] == type)).T],
+						marker=dict(size=10, symbol="circle"),
+					)
+					data.append(scatter)
+		else:
+			for i in range(0, names.shape[0]):
 				scatter = go.Scatter(
-					name=names[i] + "_" + img_types[type],
-					x=output[i, eval_map[i] == type][:, 0],
-					y=output[i, eval_map[i] == type][:, 1],
-					# text="some text",  # [idx for _ in range(val["x"].shape[0])],
+					name=names[i],
+					x=output[i].reshape(-1, 2)[:, 0],
+					y=output[i].reshape(-1, 2)[:, 1],
+					text="sometext",  # [idx for _ in range(val["x"].shape[0])],
 					textposition="top center",
 					mode="markers",
-					hoverinfo ="text",
-					hovertext =[idx for idx in np.array(np.where(eval_map[i] == type)).T],
 					marker=dict(size=10, symbol="circle"),
 				)
 				data.append(scatter)
@@ -76,15 +89,14 @@ def plot2d(names, output, eval_map=None):
 		for i in range(0, names.shape[0]):
 			scatter = go.Scatter(
 				name=names[i],
-				x=output[i][:, 0],
-				y=output[i][:, 1],
+				x=output[i].reshape(-1,2)[:,0],
+				y=output[i].reshape(-1,2)[:,1],
 				text="sometext",  # [idx for _ in range(val["x"].shape[0])],
 				textposition="top center",
 				mode="markers",
 				marker=dict(size=10, symbol="circle"),
 			)
 			data.append(scatter)
-
 	figure = go.Figure(data=data, layout=layout)
 
 	return figure

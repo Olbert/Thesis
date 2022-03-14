@@ -3,7 +3,7 @@ import json
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
-
+import pandas as pd
 # get relative data folder
 PATH = pathlib.Path(__file__).parent
 DATA_PATH = PATH.joinpath("data").resolve()
@@ -148,6 +148,20 @@ tab_selected_style = {
     'padding': '6px'
 }
 
+df = pd.DataFrame(
+    {
+        "Domain":   ["philips_15",  "philips_3", "siemens_15",   "siemens_3",    "ge_15",    "ge_3"],
+        "Mean":     [0.3316,        0.2821,     0.2816,             0.3602,     0.289,      0.3391,],
+        "Variance": [0.039,         0.0249,     0.0161,             0.0365,      0.0377,     0.0435,],
+    }
+)
+df = pd.DataFrame(
+    {
+        "Domain":   ["philips_15", "siemens_15",   "siemens_3", ],
+        "Mean":     [0.3316,      0.2816,             0.3602,   ],
+        "Variance": [0.039,       0.0161,             0.0365,   ],
+    }
+)
 
 PAGE_ON = 2
 PAGE0 =html.Div(
@@ -220,7 +234,7 @@ PAGE1 = html.Div(
 									"value": "lle",
 								},
 								{
-									"label": "IsoMap",
+									"label": "ISOMAP",
 									"value": "isomap",
 								},
 							],
@@ -331,7 +345,17 @@ PAGE1 = html.Div(
 							max=100,
 							step=None,
 							val=30,
-							marks={i: str(i) for i in [3, 10, 30, 50, 100]},
+							marks={i: str(i) for i in [50, 100, 200, 5, 10, 30, 3, 25, 80]},
+							# marks={i: str(i) for i in [3, 10, 30, 50, 100]},
+						),
+						NamedSlider(
+							name="Neighbours",
+							short="neighbours",
+							min=3,
+							max=100,
+							step=None,
+							val=30,
+							marks={i: str(i) for i in [3, 5, 10, 30, 50, 100]},
 						),
 						html.Button(id="reset-button", children=["Reset graph"])
 					]
@@ -343,25 +367,43 @@ PAGE1 = html.Div(
 						dcc.Graph(id="tsne-graph",
 						          style={
 							          "display": "inline-block",
-							          "width": "45%",
+							          "width": "40%",
+                                      # 'verticalAlign': 'top',
 
 
 						          }),
-						dcc.Graph(id="div-plot-click-image",
-						          style={
-							          "display": "inline-block",
-							          "width": "45%",
-							          "xaxis": {"visible": False,},
-							          "yaxis": {"visible": False, },
-						          },
-						          config = {'modeBarButtons': [['zoom2d', 'pan2d','select2d','lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']]}
-						          ),
+                        dcc.Graph(id="div-plot-click-image",
+                                  style={
+                                      "display": "inline-block",
+                                      "width": "40%",
+                                      "xaxis": {"visible": False, },
+                                      "yaxis": {"visible": False, },
+                                      # 'verticalAlign': 'top',
+                                  },
+                                  config={'modeBarButtons': [
+                                      ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d',
+                                       'resetScale2d']]}
+                                  ),
+                        dbc.Table.from_dataframe(
+                            df,
+                            striped=True,
+                            bordered=True,
+                            hover=True,
+                            style = {
+                                    "display": "inline-block",
+                                    "width": "15%",
+                                    'verticalAlign': 'top',
+                                },
+                            id = 'table',
+                        ),
 						]
 				)
 			]
 		)
 	],
 ),
+
+
 
 PAGE2 = html.Div(
 	id='page2',
@@ -467,6 +509,7 @@ PAGE2 = html.Div(
 							          "width": "100%",
 							          "xaxis": {"visible": False, },
 							          "yaxis": {"visible": False, },
+                                      'verticalAlign': 'top',
 						          }),
 						]
 				)
