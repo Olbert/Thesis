@@ -1,4 +1,4 @@
-# Neural Radiance & Reflectance Fields Accelerations
+# Visualizing the effects of domain shift on CNN-based image segmentation
 
 ### [Google Slides](https://docs.google.com/presentation/d/1YMiigPILl7YXAIzMO3UTdJRwpRNKXH82aXwTqcPlezs/edit?usp=sharing) 
 <img title="" src="docs/figs/thanks.gif" alt="">
